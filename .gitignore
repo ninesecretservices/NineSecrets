@@ -1,0 +1,33 @@
+# Node & NPM
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
+
+# Build outputs
+build/
+dist/
+out/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Backend specifics
+temp/
+logs/
+mongodb-backup/
+
+# Internal-only docs — not for the shared repo
+understand.md
+DEPLOYMENT.md
+Nine Secrets Brand Guideline.pdf

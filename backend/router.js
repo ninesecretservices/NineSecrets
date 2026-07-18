@@ -1,0 +1,199 @@
+import express from 'express';
+const router = express.Router();
+import { auth, requireRole, optionalAuth } from './middleware/auth.js';
+import { responsedata } from './methods.js';
+
+// ---------------------------------------------------------
+// Controller Imports
+// ---------------------------------------------------------
+import AuthController from './controller/auth.js';
+import UserController from './controller/user.js';
+import DepartmentController from './controller/department.js';
+import ItemController from './controller/item.js';
+import DesignController from './controller/design.js';
+import ColourController from './controller/colour.js';
+import FabricController from './controller/fabric.js';
+import FitController from './controller/fit.js';
+import SizeController from './controller/size.js';
+import ProductController from './controller/product.js';
+import CartController from './controller/cart.js';
+import OrderController from './controller/order.js';
+import UploadController from './controller/upload.js';
+import ReviewController from './controller/review.js';
+import CouponController from './controller/coupon.js';
+import SettingController from './controller/setting.js';
+
+// ---------------------------------------------------------
+// Controller Instances
+// ---------------------------------------------------------
+const authController = new AuthController();
+const userController = new UserController();
+const departmentController = new DepartmentController();
+const itemController = new ItemController();
+const designController = new DesignController();
+const colourController = new ColourController();
+const fabricController = new FabricController();
+const fitController = new FitController();
+const sizeController = new SizeController();
+const productController = new ProductController();
+const cartController = new CartController();
+const orderController = new OrderController();
+const uploadController = new UploadController();
+const reviewController = new ReviewController();
+const couponController = new CouponController();
+const settingController = new SettingController();
+
+// ---------------------------------------------------------
+// Auth Routes
+// ---------------------------------------------------------
+router.post('/auth/login', authController.login, responsedata);
+router.post('/auth/signup', authController.signup, responsedata);
+router.post('/auth/refresh-token', authController.refreshToken, responsedata);
+router.post('/auth/forgot-password', authController.forgotPassword, responsedata);
+router.post('/auth/reset-password', authController.resetPassword, responsedata);
+router.post('/auth/logout', auth, authController.logout, responsedata);
+router.post('/auth/profile', auth, authController.profile, responsedata);
+router.post('/auth/profile-update', auth, authController.profileUpdate, responsedata);
+
+// ---------------------------------------------------------
+// User (Admin) Routes
+// ---------------------------------------------------------
+router.post('/user/list', auth, requireRole(['superadmin']), userController.userList, responsedata);
+router.post('/user/create', auth, requireRole(['superadmin']), userController.userCreate, responsedata);
+router.post('/user/update', auth, requireRole(['superadmin']), userController.userUpdate, responsedata);
+router.post('/user/delete', auth, requireRole(['superadmin']), userController.userDelete, responsedata);
+router.post('/user/detail', auth, requireRole(['superadmin']), userController.userDetail, responsedata);
+
+// ---------------------------------------------------------
+// Department Routes
+// ---------------------------------------------------------
+router.post('/department/list', auth, departmentController.departmentList, responsedata);
+router.post('/department/create', auth, requireRole(['superadmin','admin']), departmentController.departmentCreate, responsedata);
+router.post('/department/update', auth, requireRole(['superadmin','admin']), departmentController.departmentUpdate, responsedata);
+router.post('/department/delete', auth, requireRole(['superadmin']), departmentController.departmentDelete, responsedata);
+router.post('/department/detail', auth, departmentController.departmentDetail, responsedata);
+
+// ---------------------------------------------------------
+// Item Routes
+// ---------------------------------------------------------
+router.post('/item/public-list', itemController.itemList, responsedata); // storefront nav & category carousels
+router.post('/item/list', auth, itemController.itemList, responsedata);
+router.post('/item/create', auth, requireRole(['superadmin','admin']), itemController.itemCreate, responsedata);
+router.post('/item/update', auth, requireRole(['superadmin','admin']), itemController.itemUpdate, responsedata);
+router.post('/item/delete', auth, requireRole(['superadmin']), itemController.itemDelete, responsedata);
+router.post('/item/detail', auth, itemController.itemDetail, responsedata);
+
+// ---------------------------------------------------------
+// Design Routes
+// ---------------------------------------------------------
+router.post('/design/list', auth, designController.designList, responsedata);
+router.post('/design/create', auth, requireRole(['superadmin','admin']), designController.designCreate, responsedata);
+router.post('/design/update', auth, requireRole(['superadmin','admin']), designController.designUpdate, responsedata);
+router.post('/design/delete', auth, requireRole(['superadmin']), designController.designDelete, responsedata);
+router.post('/design/detail', auth, designController.designDetail, responsedata);
+
+// ---------------------------------------------------------
+// Colour Routes
+// ---------------------------------------------------------
+router.post('/colour/list', auth, colourController.colourList, responsedata);
+router.post('/colour/create', auth, requireRole(['superadmin','admin']), colourController.colourCreate, responsedata);
+router.post('/colour/update', auth, requireRole(['superadmin','admin']), colourController.colourUpdate, responsedata);
+router.post('/colour/delete', auth, requireRole(['superadmin']), colourController.colourDelete, responsedata);
+router.post('/colour/detail', auth, colourController.colourDetail, responsedata);
+
+// ---------------------------------------------------------
+// Fabric Routes
+// ---------------------------------------------------------
+router.post('/fabric/list', auth, fabricController.fabricList, responsedata);
+router.post('/fabric/create', auth, requireRole(['superadmin','admin']), fabricController.fabricCreate, responsedata);
+router.post('/fabric/update', auth, requireRole(['superadmin','admin']), fabricController.fabricUpdate, responsedata);
+router.post('/fabric/delete', auth, requireRole(['superadmin']), fabricController.fabricDelete, responsedata);
+router.post('/fabric/detail', auth, fabricController.fabricDetail, responsedata);
+
+// ---------------------------------------------------------
+// Fit Routes
+// ---------------------------------------------------------
+router.post('/fit/list', auth, fitController.fitList, responsedata);
+router.post('/fit/create', auth, requireRole(['superadmin','admin']), fitController.fitCreate, responsedata);
+router.post('/fit/update', auth, requireRole(['superadmin','admin']), fitController.fitUpdate, responsedata);
+router.post('/fit/delete', auth, requireRole(['superadmin']), fitController.fitDelete, responsedata);
+router.post('/fit/detail', auth, fitController.fitDetail, responsedata);
+
+// ---------------------------------------------------------
+// Size Routes
+// ---------------------------------------------------------
+router.post('/size/list', auth, sizeController.sizeList, responsedata);
+router.post('/size/create', auth, requireRole(['superadmin','admin']), sizeController.sizeCreate, responsedata);
+router.post('/size/update', auth, requireRole(['superadmin','admin']), sizeController.sizeUpdate, responsedata);
+router.post('/size/delete', auth, requireRole(['superadmin']), sizeController.sizeDelete, responsedata);
+router.post('/size/detail', auth, sizeController.sizeDetail, responsedata);
+
+// ---------------------------------------------------------
+// Product Routes
+// ---------------------------------------------------------
+// Some product list routes might be public (optionalAuth) on storefront
+router.post('/product/public-list', optionalAuth, productController.productList, responsedata);
+router.post('/product/public-detail', optionalAuth, productController.productDetail, responsedata);
+
+// Admin product routes
+router.post('/product/list', auth, productController.productList, responsedata);
+router.post('/product/create', auth, requireRole(['superadmin','admin']), productController.productCreate, responsedata);
+router.post('/product/update', auth, requireRole(['superadmin','admin']), productController.productUpdate, responsedata);
+router.post('/product/delete', auth, requireRole(['superadmin']), productController.productDelete, responsedata);
+router.post('/product/detail', auth, productController.productDetail, responsedata);
+router.post('/product/stock-import', auth, requireRole(['superadmin','admin']), productController.stockImport, responsedata);
+
+// ---------------------------------------------------------
+// Cart Routes
+// ---------------------------------------------------------
+router.post('/cart/detail', auth, cartController.cartDetail, responsedata);
+router.post('/cart/update', auth, cartController.cartUpdate, responsedata);
+
+// ---------------------------------------------------------
+// Order Routes
+// ---------------------------------------------------------
+router.post('/order/list', auth, orderController.orderList, responsedata);
+router.post('/order/create', auth, orderController.orderCreate, responsedata);
+router.post('/order/detail', auth, orderController.orderDetail, responsedata);
+router.post('/order/update', auth, requireRole(['superadmin','admin']), orderController.orderUpdate, responsedata);
+router.post('/order/cancel', auth, orderController.orderCancel, responsedata);
+router.post('/order/return-request', auth, orderController.returnRequest, responsedata);
+router.post('/order/return-update', auth, requireRole(['superadmin','admin']), orderController.returnUpdate, responsedata);
+router.post('/order/stats', auth, requireRole(['superadmin','admin']), orderController.orderStats, responsedata);
+
+// ---------------------------------------------------------
+// Review Routes
+// ---------------------------------------------------------
+router.post('/review/list', reviewController.reviewList, responsedata);
+router.post('/review/stats', reviewController.reviewStats, responsedata); // aggregate rating for the storefront
+router.post('/review/featured', reviewController.reviewFeatured, responsedata); // top quotes for the homepage testimonials strip
+router.post('/review/create', auth, reviewController.reviewCreate, responsedata);
+router.post('/review/delete', auth, requireRole(['superadmin','admin']), reviewController.reviewDelete, responsedata);
+
+// ---------------------------------------------------------
+// Coupon Routes
+// ---------------------------------------------------------
+router.post('/coupon/list', auth, requireRole(['superadmin','admin']), couponController.couponList, responsedata);
+router.post('/coupon/create', auth, requireRole(['superadmin','admin']), couponController.couponCreate, responsedata);
+router.post('/coupon/update', auth, requireRole(['superadmin','admin']), couponController.couponUpdate, responsedata);
+router.post('/coupon/delete', auth, requireRole(['superadmin']), couponController.couponDelete, responsedata);
+router.post('/coupon/apply', auth, couponController.couponApply, responsedata);
+
+// ---------------------------------------------------------
+// Setting Routes (storefront content)
+// ---------------------------------------------------------
+router.post('/setting/public-detail', settingController.settingPublicDetail, responsedata);
+router.post('/setting/preview-detail', auth, requireRole(['superadmin','admin']), settingController.settingPreviewDetail, responsedata);
+// Editing storefront content & store config is superadmin-only.
+router.post('/setting/detail', auth, requireRole(['superadmin']), settingController.settingDetail, responsedata);
+router.post('/setting/save-draft', auth, requireRole(['superadmin']), settingController.settingSaveDraft, responsedata);
+router.post('/setting/publish', auth, requireRole(['superadmin']), settingController.settingPublish, responsedata);
+router.post('/setting/revert', auth, requireRole(['superadmin']), settingController.settingRevert, responsedata);
+
+// ---------------------------------------------------------
+// Upload Routes
+// ---------------------------------------------------------
+import upload from './middleware/upload.js';
+router.post('/upload/image', auth, upload.single('image'), uploadController.uploadImage, responsedata);
+
+export default router;

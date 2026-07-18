@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/* Brand palette tokens — pastel green on cream, the store's one fixed theme.
+   The storefront's ThemeApplier re-applies these same values at runtime from
+   the published Setting so the two never drift apart. */
+:root {
+  --ns-cream: #F3ECE3;
+  --ns-beige: #E4D8C8;
+  --ns-blush: #DCE8D8;
+  --ns-baby-pink: #E3EEDF;
+  --ns-pastel-green: #C3DCC0;
+  --ns-ink: #3F5347;
+  --ns-ink-soft: #4A5F52;
+  --ns-mauve: #7E8A7B;
+  --ns-mauve-dark: #5E6C60;
+  --ns-mauve-soft: #97A294;
+  --ns-band: #3F5347;
+  --ns-band-text: #F3ECE3;
+  --ns-surface: #F3ECE3;
+}
+
+@layer base {
+  body {
+    @apply font-body text-text-dark bg-cream;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading italic;
+  }
+}
+
+/* Visible keyboard-focus for accessibility */
+:focus-visible {
+  outline: 2px solid #201820;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
+/* Soft, thin scrollbars matching the brand (Windows default bars look heavy) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 112, 112, 0.35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(138, 112, 112, 0.35);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(138, 112, 112, 0.55);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Hide scrollbar for clean horizontal scrolls if needed */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

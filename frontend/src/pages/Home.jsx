@@ -393,7 +393,7 @@ function InstaTile({ src, href, type = 'image' }) {
   const [muted, setMuted] = useState(true);
 
   const tile = (
-    <div className="group relative aspect-square cursor-pointer overflow-hidden">
+    <div className="group relative aspect-[9/16] cursor-pointer overflow-hidden">
       {type === 'video' ? (
         <video
           src={src}

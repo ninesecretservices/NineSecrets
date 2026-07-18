@@ -458,6 +458,14 @@ function InstagramSection({ content }) {
   const manualImages = content.images || [];
   if (!posts && manualImages.length === 0) return null;
 
+  // Fewer than 6 tiles? Size the grid to match, so tiles fill the row and
+  // grow proportionally instead of leaving a dead empty column behind.
+  const itemCount = posts ? posts.length : manualImages.length;
+  const desktopColsClass = {
+    1: 'md:grid-cols-1', 2: 'md:grid-cols-2', 3: 'md:grid-cols-3',
+    4: 'md:grid-cols-4', 5: 'md:grid-cols-5', 6: 'md:grid-cols-6',
+  }[Math.min(Math.max(itemCount, 1), 6)];
+
   return (
     <section className="bg-cream py-20">
       <div className="mx-auto max-w-7xl px-6 md:px-10">
@@ -465,7 +473,7 @@ function InstagramSection({ content }) {
           <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-ink">As Seen On @ninesecrets</p>
           <h2 className="font-heading italic text-ink" style={{ fontSize: 'clamp(26px, 3vw, 38px)' }}>Customer Diaries</h2>
         </div>
-        <div className="mb-12 grid grid-cols-3 gap-3 md:grid-cols-6">
+        <div className={`mb-12 grid grid-cols-3 gap-3 ${desktopColsClass}`}>
           {posts
             ? posts.map((p, i) => <InstaTile key={i} src={p.img} href={p.link} />)
             : manualImages.map((item, i) => {

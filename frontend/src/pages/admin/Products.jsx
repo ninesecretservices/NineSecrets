@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Pencil, Trash2, Plus, X, Upload, ImageOff } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, Upload, ImageOff, Sparkles } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
 import { uploadFile, deleteImage, slugifyFolder } from '../../utils/upload';
 import { inr } from '../../utils/format';
@@ -117,8 +117,9 @@ export default function Products() {
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
 
-  const [master, setMaster] = useState({ departments: [], items: [], designs: [], fabrics: [], colours: [], sizes: [], fits: [] });
+  const [master, setMaster] = useState({ departments: [], items: [], designs: [], fabrics: [], colours: [], sizes: [], fits: [], descriptionTemplates: [] });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -135,7 +136,7 @@ export default function Products() {
   const fetchMasterData = useCallback(async () => {
     const endpoints = {
       departments: 'department', items: 'item', designs: 'design', fabrics: 'fabric',
-      colours: 'colour', sizes: 'size', fits: 'fit',
+      colours: 'colour', sizes: 'size', fits: 'fit', descriptionTemplates: 'description-template',
     };
     const entries = await Promise.all(
       Object.entries(endpoints).map(async ([key, ep]) => {
@@ -246,6 +247,40 @@ export default function Products() {
       setFormError(err.response?.data?.message || 'Image upload failed');
     }
     setUploading(false);
+  };
+
+  // Shared by "Insert template" and "Generate with AI" — never silently
+  // discards text the user already typed.
+  const applyDescriptionText = (newText) => {
+    setFormData((f) => {
+      const existing = (f.description || '').trim();
+      if (!existing) return { ...f, description: newText };
+      const replace = window.confirm('Replace the current description? Choose Cancel to append instead.');
+      return { ...f, description: replace ? newText : `${existing}\n\n${newText}` };
+    });
+  };
+
+  const handleAiDescription = async () => {
+    let imageUrl = formData.thumbnail;
+    if (!imageUrl) {
+      imageUrl = window.prompt('No photo uploaded yet — paste an image URL to generate a description from:');
+      if (!imageUrl) return;
+    }
+    setAiGenerating(true);
+    setFormError('');
+    try {
+      const context = {
+        name: formData.name,
+        department: master.departments.find((d) => d._id === formData.department)?.name,
+        item: master.items.find((i) => i._id === formData.item)?.name,
+        fabric: master.fabrics.find((f) => f._id === formData.fabric)?.name,
+      };
+      const res = await api.post('/product/ai-description', { imageUrl: resolveImageUrl(imageUrl), context });
+      applyDescriptionText(res.data.data.description);
+    } catch (err) {
+      setFormError(err.response?.data?.message || 'AI description generation failed');
+    }
+    setAiGenerating(false);
   };
 
   const handleSave = async (e) => {
@@ -418,7 +453,35 @@ export default function Products() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className={labelClass}>Short Description</label>
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <label className={`${labelClass} mb-0`}>Short Description</label>
+                    <div className="flex items-center gap-2">
+                      {master.descriptionTemplates.length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const tpl = master.descriptionTemplates.find((t) => t._id === e.target.value);
+                            if (tpl) applyDescriptionText(tpl.body);
+                            e.target.value = '';
+                          }}
+                          className="rounded-full border border-beige bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink outline-none transition-colors hover:bg-cream"
+                        >
+                          <option value="">Insert template...</option>
+                          {master.descriptionTemplates.map((t) => (
+                            <option key={t._id} value={t._id}>{t.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAiDescription}
+                        disabled={aiGenerating}
+                        className="flex items-center gap-1.5 rounded-full border border-beige px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+                      >
+                        <Sparkles size={13} /> {aiGenerating ? 'Writing...' : 'Generate with AI'}
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     rows={2}
                     placeholder="One friendly line shown under the product name, e.g. Breathable cotton, invisible under any top"
@@ -426,6 +489,9 @@ export default function Products() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className={inputClass}
                   />
+                  <p className="mt-1 text-[11px] text-mauve">
+                    "Generate with AI" uses the uploaded main photo (or a pasted image URL if none is uploaded yet) to draft a description — always review before saving.
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Department</label>

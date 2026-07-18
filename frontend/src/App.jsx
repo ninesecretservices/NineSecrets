@@ -6,7 +6,7 @@ import Login from './pages/Login';
 import Checkout from './pages/Checkout';
 import AdminLayout from './components/AdminLayout';
 import StorefrontLayout from './components/StorefrontLayout';
-import { Departments, Items, Designs, Fabrics, Fits, Sizes, Colours } from './pages/admin/MasterDataViews';
+import { Departments, Items, Designs, Fabrics, Fits, Sizes, Colours, DescriptionTemplates } from './pages/admin/MasterDataViews';
 import Products from './pages/admin/Products';
 import Dashboard from './pages/admin/Dashboard';
 import Orders from './pages/admin/Orders';
@@ -66,6 +66,7 @@ function App() {
           <Route path="departments" element={<Departments />} />
           <Route path="items" element={<Items />} />
           <Route path="designs" element={<Designs />} />
+          <Route path="description-templates" element={<DescriptionTemplates />} />
           <Route path="colours" element={<Colours />} />
           <Route path="fabrics" element={<Fabrics />} />
           <Route path="fits" element={<Fits />} />

@@ -4,7 +4,7 @@ import slugify from 'slugify';
 
 class ProductController {
   async productList(req, res, next) {
-    const { page = 1, limit = 10, search = '', department, item, sort = 'newest', ids, featured } = req.body;
+    const { page = 1, limit = 10, search = '', department, item, fit, sort = 'newest', ids, featured } = req.body;
     const query = { isDeleted: false };
     if (Array.isArray(ids) && ids.length > 0) query._id = { $in: ids };
     if (featured) query.isFeatured = true;
@@ -24,6 +24,7 @@ class ProductController {
     }
     if (department) query.department = department;
     if (item) query.item = item;
+    if (fit) query['variants.fit'] = fit; // matches products that have at least one variant with this fit
     
     const total = await Product.countDocuments(query);
     const data = await Product.find(query)

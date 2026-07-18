@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone, Mail, MapPin } from 'lucide-react';
 import useTitle from '../utils/useTitle';
+import { getCommerceSettings } from '../utils/settings';
 
 function LegalShell({ title, updated, children }) {
   return (
@@ -33,30 +35,41 @@ function H({ children }) {
 }
 
 function ContactBlock() {
+  const [contact, setContact] = useState({ contactPhone: '', contactEmail: '', contactAddress: '' });
+  useEffect(() => { getCommerceSettings().then(setContact); }, []);
+
+  if (!contact.contactPhone && !contact.contactEmail && !contact.contactAddress) return null;
+
   return (
     <div className="border border-beige bg-surface p-6">
       <H>Questions? Contact us</H>
       <div className="mt-3 flex flex-col gap-2.5 text-[13px]">
-        <a
-          href="tel:+919876543210"
-          className="flex items-center gap-2 hover:text-ink"
-        >
-          <Phone size={14} strokeWidth={1.5} /> +91 98765 43210
-        </a>
-        <a
-          href="mailto:care@ninesecrets.com"
-          className="flex items-center gap-2 hover:text-ink"
-        >
-          <Mail size={14} strokeWidth={1.5} /> care@ninesecrets.com
-        </a>
-        <p className="flex items-start gap-2">
-          <MapPin
-            size={14}
-            strokeWidth={1.5}
-            className="mt-0.5 flex-shrink-0"
-          />{' '}
-          Nine Secrets, Surat, Gujarat, India
-        </p>
+        {contact.contactPhone && (
+          <a
+            href={`tel:${contact.contactPhone.replace(/[^0-9+]/g, '')}`}
+            className="flex items-center gap-2 hover:text-ink"
+          >
+            <Phone size={14} strokeWidth={1.5} /> {contact.contactPhone}
+          </a>
+        )}
+        {contact.contactEmail && (
+          <a
+            href={`mailto:${contact.contactEmail}`}
+            className="flex items-center gap-2 hover:text-ink"
+          >
+            <Mail size={14} strokeWidth={1.5} /> {contact.contactEmail}
+          </a>
+        )}
+        {contact.contactAddress && (
+          <p className="flex items-start gap-2">
+            <MapPin
+              size={14}
+              strokeWidth={1.5}
+              className="mt-0.5 flex-shrink-0"
+            />{' '}
+            {contact.contactAddress}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -64,6 +77,10 @@ function ContactBlock() {
 
 export function PrivacyPolicy() {
   useTitle('Privacy Policy');
+  const [contact, setContact] = useState({ contactEmail: '' });
+  useEffect(() => { getCommerceSettings().then(setContact); }, []);
+  const email = contact.contactEmail || 'our support team';
+
   return (
     <LegalShell title="Privacy Policy" updated="July 2026">
       <div>
@@ -108,8 +125,9 @@ export function PrivacyPolicy() {
         <H>Your rights</H>
         <p>
           You may request a copy of the personal data we hold about you, ask us
-          to correct it, or ask us to delete your account entirely. Write to us
-          at care@ninesecrets.com and we'll act within 30 days.
+          to correct it, or ask us to delete your account entirely. Write to{' '}
+          {contact.contactEmail ? <a href={`mailto:${email}`} className="text-ink underline">{email}</a> : email}{' '}
+          and we'll act within 30 days.
         </p>
       </div>
       <div>
@@ -180,6 +198,9 @@ export function ReturnPolicy() {
 
 export function ShippingPolicy() {
   useTitle('Shipping Policy');
+  const [commerce, setCommerce] = useState({ freeShippingThreshold: 599, shippingFee: 50 });
+  useEffect(() => { getCommerceSettings().then(setCommerce); }, []);
+
   return (
     <LegalShell title="Shipping Policy" updated="July 2026">
       <div>
@@ -196,7 +217,7 @@ export function ShippingPolicy() {
         <p>
           Standard delivery takes 3–5 business days across India (metros usually
           faster, remote pin codes may take up to 7). Shipping is free on orders
-          of ₹599 and above; a flat ₹50 applies below that. Any current
+          of ₹{commerce.freeShippingThreshold} and above; a flat ₹{commerce.shippingFee} applies below that. Any current
           threshold is always shown live in your bag.
         </p>
       </div>

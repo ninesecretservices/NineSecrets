@@ -11,6 +11,10 @@ const DEFAULTS = {
   codEnabled: true,
   lowStockThreshold: 5,
   maxOrderQty: 10,
+  contactPhone: '',
+  contactEmail: '',
+  contactAddress: '',
+  facebookUrl: '',
 };
 
 export default function StoreSettings() {
@@ -94,6 +98,29 @@ export default function StoreSettings() {
           </div>
         </div>
 
+        <h2 className="mb-4 font-heading text-lg italic text-ink">Contact Details</h2>
+        <p className="mb-4 text-[11px] text-mauve">Shown in the site footer, legal pages, and policy text — one place to keep it accurate everywhere.</p>
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Support Phone</label>
+            <input type="text" className={inputClass} placeholder="e.g. +91 98765 43210"
+              value={cfg.contactPhone || ''}
+              onChange={(e) => setCfg({ ...cfg, contactPhone: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Support Email</label>
+            <input type="email" className={inputClass} placeholder="e.g. care@ninesecrets.com"
+              value={cfg.contactEmail || ''}
+              onChange={(e) => setCfg({ ...cfg, contactEmail: e.target.value })} />
+          </div>
+        </div>
+        <div className="mb-6">
+          <label className={labelClass}>Business Address</label>
+          <input type="text" className={inputClass} placeholder="e.g. Nine Secrets, Surat, Gujarat, India"
+            value={cfg.contactAddress || ''}
+            onChange={(e) => setCfg({ ...cfg, contactAddress: e.target.value })} />
+        </div>
+
         <h2 className="mb-4 font-heading text-lg italic text-ink">Social Links</h2>
         <p className="mb-4 text-[11px] text-mauve">These appear as floating icons on the storefront. Leave blank to hide an icon.</p>
         <div className="mb-6 grid grid-cols-2 gap-4">
@@ -109,6 +136,12 @@ export default function StoreSettings() {
             <input type="url" className={inputClass} placeholder="e.g. https://instagram.com/ninesecrets"
               value={cfg.instagramUrl || ''}
               onChange={(e) => setCfg({ ...cfg, instagramUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Facebook Page URL</label>
+            <input type="url" className={inputClass} placeholder="e.g. https://facebook.com/ninesecrets"
+              value={cfg.facebookUrl || ''}
+              onChange={(e) => setCfg({ ...cfg, facebookUrl: e.target.value })} />
           </div>
         </div>
 

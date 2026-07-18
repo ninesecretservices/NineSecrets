@@ -15,6 +15,10 @@ export const getCommerceConfig = async () => {
     codEnabled: true,
     lowStockThreshold: 5,
     maxOrderQty: 10,
+    contactPhone: '',
+    contactEmail: '',
+    contactAddress: '',
+    facebookUrl: '',
     ...(doc?.value || {}),
   };
 };

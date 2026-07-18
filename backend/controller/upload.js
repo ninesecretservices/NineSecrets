@@ -18,20 +18,24 @@ if (cloudinaryConfigured) {
   });
 }
 
-// Extract the public_id Cloudinary needs for destroy() out of a secure_url,
-// e.g. https://res.cloudinary.com/<cloud>/image/upload/v169.../nine-secrets/abc123.png
-// -> "nine-secrets/abc123". Returns null for anything that isn't one of our
-// own Cloudinary URLs (local /temp/ paths, external URLs, etc.) so callers
-// can silently skip those instead of erroring.
+// Extract the public_id (and resource_type — image vs video, which destroy()
+// requires to target the right asset) out of a secure_url, e.g.
+// https://res.cloudinary.com/<cloud>/video/upload/v169.../nine-secrets/abc123.mp4
+// -> { publicId: "nine-secrets/abc123", resourceType: "video" }. Returns null
+// for anything that isn't one of our own Cloudinary URLs (local /temp/ paths,
+// external URLs, etc.) so callers can silently skip those instead of erroring.
 export function cloudinaryPublicId(url) {
   if (typeof url !== 'string') return null;
-  const marker = '/image/upload/';
-  const idx = url.indexOf(marker);
-  if (!url.includes('res.cloudinary.com') || idx === -1) return null;
-  let rest = url.slice(idx + marker.length);
-  rest = rest.replace(/^v\d+\//, ''); // drop the version segment
-  const { dir, name } = path.parse(rest);
-  return dir ? `${dir}/${name}` : name;
+  for (const resourceType of ['image', 'video']) {
+    const marker = `/${resourceType}/upload/`;
+    const idx = url.indexOf(marker);
+    if (!url.includes('res.cloudinary.com') || idx === -1) continue;
+    let rest = url.slice(idx + marker.length);
+    rest = rest.replace(/^v\d+\//, ''); // drop the version segment
+    const { dir, name } = path.parse(rest);
+    return { publicId: dir ? `${dir}/${name}` : name, resourceType };
+  }
+  return null;
 }
 
 // Defense in depth: the frontend already slugifies folder hints (e.g.
@@ -54,13 +58,14 @@ class UploadController {
     if (!req.file) {
       throw new ApiError(400, 'No file uploaded');
     }
+    const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
 
     let url;
     if (cloudinaryConfigured) {
       try {
         const result = await cloudinary.uploader.upload(req.file.path, {
           folder: safeFolder(req.body.folder),
-          resource_type: 'image',
+          resource_type: mediaType,
         });
         url = result.secure_url;
       } finally {
@@ -73,34 +78,35 @@ class UploadController {
 
     res.locals.responseData = {
       success: true,
-      message: 'Image uploaded successfully',
-      data: { url, storage: cloudinaryConfigured ? 'cloudinary' : 'local' },
+      message: `${mediaType === 'video' ? 'Video' : 'Image'} uploaded successfully`,
+      data: { url, type: mediaType, storage: cloudinaryConfigured ? 'cloudinary' : 'local' },
     };
     next();
   }
 
-  // Called whenever the admin replaces or removes an image (product photos,
-  // homepage hero/category/promise images) so Cloudinary storage doesn't fill
-  // up with orphaned files nobody references anymore. Best-effort: a missing
-  // or already-deleted asset isn't an error from the caller's point of view.
+  // Called whenever the admin replaces or removes media (product photos,
+  // homepage hero/category/promise images, Instagram videos) so Cloudinary
+  // storage doesn't fill up with orphaned files nobody references anymore.
+  // Best-effort: a missing or already-deleted asset isn't an error from the
+  // caller's point of view.
   async deleteImage(req, res, next) {
     const { url } = req.body;
     if (!url) throw new ApiError(400, 'Image URL is required');
 
     if (cloudinaryConfigured) {
-      const publicId = cloudinaryPublicId(url);
-      if (publicId) {
+      const asset = cloudinaryPublicId(url);
+      if (asset) {
         try {
-          await cloudinary.uploader.destroy(publicId);
+          await cloudinary.uploader.destroy(asset.publicId, { resource_type: asset.resourceType });
         } catch (err) {
-          console.warn('Cloudinary delete failed for', publicId, ':', err.message);
+          console.warn('Cloudinary delete failed for', asset.publicId, ':', err.message);
         }
       }
     } else if (url.startsWith('/temp/')) {
       fs.unlink(path.join(process.cwd(), url), () => {});
     }
 
-    res.locals.responseData = { success: true, message: 'Image removed' };
+    res.locals.responseData = { success: true, message: 'Media removed' };
     next();
   }
 }

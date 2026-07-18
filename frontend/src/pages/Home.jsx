@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Camera, ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
+import { Heart, Camera, ChevronLeft, ChevronRight, BadgeCheck, Volume2, VolumeX } from 'lucide-react';
 import api, { resolveImageUrl } from '../utils/api';
 import { getHomepageSettings } from '../utils/settings';
 import ProductCard from '../components/ProductCard';
@@ -43,21 +43,27 @@ function HeroCarousel({ content }) {
       <div className="absolute inset-0 bg-ink/30" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-        <span className="mb-4 block text-[11px] uppercase tracking-[0.18em] text-cream/90">{h.eyebrow}</span>
-        <h1
-          key={`h-${idx}`}
-          className="mb-4 max-w-2xl animate-[fadeSlide_0.6s_ease-out] whitespace-pre-line font-heading italic leading-[1.15] text-cream"
-          style={{ fontSize: 'clamp(32px, 4.6vw, 56px)' }}
-        >
-          {h.heading}
-        </h1>
-        <p className="mb-6 text-sm tracking-[0.04em] text-cream/90">{h.subtext}</p>
-        <div className="mb-9 text-[11px] uppercase tracking-[0.14em] text-cream/80">
-          Free Shipping Pan-India &middot; COD Available &middot; Easy Return
-        </div>
-        <Link to={h.link || '/collection'} className="bg-cream px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-white">
-          {h.ctaLabel}
-        </Link>
+        {h.eyebrow && (
+          <span className="mb-4 block text-[11px] uppercase tracking-[0.18em] text-cream/90">{h.eyebrow}</span>
+        )}
+        {h.heading && (
+          <h1
+            key={`h-${idx}`}
+            className="mb-4 max-w-2xl animate-[fadeSlide_0.6s_ease-out] whitespace-pre-line font-heading italic leading-[1.15] text-cream"
+            style={{ fontSize: 'clamp(32px, 4.6vw, 56px)' }}
+          >
+            {h.heading}
+          </h1>
+        )}
+        {h.subtext && <p className="mb-6 text-sm tracking-[0.04em] text-cream/90">{h.subtext}</p>}
+        {h.features && (
+          <div className="mb-9 text-[11px] uppercase tracking-[0.14em] text-cream/80">{h.features}</div>
+        )}
+        {h.ctaLabel && (
+          <Link to={h.link || '/collection'} className="bg-cream px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-white">
+            {h.ctaLabel}
+          </Link>
+        )}
       </div>
 
       {slides.length > 1 && (
@@ -365,19 +371,45 @@ function PromiseSection({ content }) {
   );
 }
 
-function InstaTile({ src, href }) {
+function InstaTile({ src, href, type = 'image' }) {
+  const [muted, setMuted] = useState(true);
+
   const tile = (
     <div className="group relative aspect-square cursor-pointer overflow-hidden">
-      <img
-        src={src}
-        alt="Nine Secrets lifestyle photo"
-        loading="lazy"
-        className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
-      />
-      <div className="absolute inset-0 bg-blush/[0.13] transition-opacity duration-[400ms] group-hover:opacity-0" />
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-        <Heart size={22} className="fill-cream text-cream" />
-      </div>
+      {type === 'video' ? (
+        <video
+          src={src}
+          className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
+          autoPlay
+          loop
+          muted={muted}
+          playsInline
+        />
+      ) : (
+        <img
+          src={src}
+          alt="Nine Secrets lifestyle photo"
+          loading="lazy"
+          className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
+        />
+      )}
+      {type === 'video' ? (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMuted((m) => !m); }}
+          aria-label={muted ? 'Unmute video' : 'Mute video'}
+          className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream"
+        >
+          {muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+        </button>
+      ) : (
+        <>
+          <div className="absolute inset-0 bg-blush/[0.13] transition-opacity duration-[400ms] group-hover:opacity-0" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+            <Heart size={22} className="fill-cream text-cream" />
+          </div>
+        </>
+      )}
     </div>
   );
   return href ? <a href={href} target="_blank" rel="noreferrer" aria-label="View post on Instagram">{tile}</a> : tile;
@@ -418,7 +450,10 @@ function InstagramSection({ content }) {
         <div className="mb-12 grid grid-cols-3 gap-3 md:grid-cols-6">
           {posts
             ? posts.map((p, i) => <InstaTile key={i} src={p.img} href={p.link} />)
-            : manualImages.map((src, i) => <InstaTile key={i} src={resolveImageUrl(src)} />)}
+            : manualImages.map((item, i) => {
+                const media = typeof item === 'string' ? { url: item, type: 'image' } : item;
+                return <InstaTile key={i} src={resolveImageUrl(media.url)} type={media.type} />;
+              })}
         </div>
         <div className="flex justify-center">
           <a

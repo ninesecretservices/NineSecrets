@@ -17,6 +17,21 @@ export const uploadFile = async (file, folder) => {
   return res.data.data.url;
 };
 
+/**
+ * Same upload, but for spots that accept both images and videos (e.g. the
+ * Instagram/Customer Diaries tiles) and need to know which one came back.
+ * @param {File} file
+ * @param {string} [folder]
+ * @returns {Promise<{url: string, type: 'image'|'video'}>}
+ */
+export const uploadMedia = async (file, folder) => {
+  const fd = new FormData();
+  fd.append('image', file);
+  if (folder) fd.append('folder', folder);
+  const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return { url: res.data.data.url, type: res.data.data.type || 'image' };
+};
+
 // Best-effort cleanup — called whenever an admin replaces or removes an
 // image, so Cloudinary storage doesn't fill up with orphaned files. A failed
 // delete (network hiccup, already gone) should never block the admin's save.

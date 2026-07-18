@@ -1,18 +1,78 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Minus, Plus, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react';
+import { Star, Heart, Minus, Plus, ChevronDown, ChevronUp, BadgeCheck, X } from 'lucide-react';
 import api from '../utils/api';
 import useStore from '../store/useStore';
 import ProductCard, { ColorDot } from '../components/ProductCard';
 import { toCardProduct } from '../utils/designData';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
+import { getCommerceSettings } from '../utils/settings';
+import { SIZE_CHART } from './StaticPages';
 
-const ACCORDIONS = [
-  { title: 'Product Details', body: 'Breathable cotton blend, hand-finished seams. Inner layer: 100% cotton. Outer layer: 92% cotton, 8% elastane. Fully lined cups. Adjustable straps.' },
-  { title: 'Size & Fit', body: `True to size. Model is 5'7" wearing size M. Refer to our size guide for band and cup measurements. Available in sizes XS through 3XL.` },
-  { title: 'Care Instructions', body: 'Hand wash cold or machine wash on delicate cycle. Do not tumble dry. Lay flat to dry. Do not bleach. Iron on low heat if needed.' },
-  { title: 'Shipping Policy', body: 'Ships in 24 hours. Free shipping on orders above ₹599. Standard delivery: 3–5 business days. Express delivery available at checkout.' },
+// Quick-reference size chart in a modal, so switching sizes doesn't mean
+// navigating away and losing the colour/size selection already made.
+function SizeGuideModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-10 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-cream p-6 md:p-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="font-heading text-xl italic text-ink">Size Guide</h2>
+          <button type="button" onClick={onClose} className="text-mauve hover:text-ink" aria-label="Close size guide">
+            <X size={20} strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="mb-6 overflow-x-auto border border-beige bg-white">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
+                <th className="p-3">Size</th>
+                <th className="p-3">Band (in)</th>
+                <th className="p-3">Bust (in)</th>
+                <th className="p-3">Waist (in)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SIZE_CHART.map(([s, band, bust, waist]) => (
+                <tr key={s} className="border-b border-beige/60">
+                  <td className="p-3 font-semibold text-ink">{s}</td>
+                  <td className="p-3 text-mauve-dark">{band}</td>
+                  <td className="p-3 text-mauve-dark">{bust}</td>
+                  <td className="p-3 text-mauve-dark">{waist}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs leading-relaxed text-mauve-dark">
+          Between sizes? For bras, take the smaller band and larger cup. Still unsure? We exchange free within 7 days.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Built per-product from real data — no fabricated specifics (e.g. a model's
+// measurements) and shipping numbers always match the actual store settings.
+const buildAccordions = (product, commerce) => [
+  {
+    title: 'Product Details',
+    body: product.description?.trim() || 'See the photos above for a closer look at this style. Full material details coming soon.',
+  },
+  {
+    title: 'Size & Fit',
+    body: `This style runs true to size. Use the Size Guide above to find your band and cup measurements — sizes available: ${
+      [...new Set((product.variants || []).map((v) => v.size?.name).filter(Boolean))].join(', ') || 'see options above'
+    }.`,
+  },
+  {
+    title: 'Care Instructions',
+    body: 'Hand wash cold or machine wash on delicate cycle. Do not tumble dry. Lay flat to dry. Do not bleach. Iron on low heat if needed.',
+  },
+  {
+    title: 'Shipping Policy',
+    body: `Ships in 24 hours. Free shipping on orders above ₹${commerce.freeShippingThreshold}. Standard delivery: 3–5 business days.`,
+  },
 ];
 
 function ReviewForm({ productId, user, onSaved }) {
@@ -142,12 +202,15 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [related, setRelated] = useState([]);
+  const [commerce, setCommerce] = useState({ freeShippingThreshold: 599 });
+  useEffect(() => { getCommerceSettings().then(setCommerce); }, []);
 
   const [imgIdx, setImgIdx] = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [qty, setQty] = useState(1);
   const [openAcc, setOpenAcc] = useState(0);
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [reviews, setReviews] = useState({ docs: [], average: 0, count: 0 });
   const toggleWishlist = useStore((s) => s.toggleWishlist);
   const wishlist = useStore((s) => s.wishlist);
@@ -207,6 +270,8 @@ export default function ProductDetail() {
   const gallery = product.images?.length > 0
     ? product.images
     : product.thumbnail ? [product.thumbnail] : [];
+
+  const accordions = buildAccordions(product, commerce);
 
   const colours = [...new Map((product.variants || []).map((v) => [v.colour?._id, v.colour])).values()].filter(Boolean);
   const sizes = [...new Map((product.variants || []).map((v) => [v.size?._id, v.size])).values()].filter(Boolean);
@@ -387,7 +452,7 @@ export default function ProductDetail() {
                   <p className="text-xs font-semibold text-ink">
                     Size: <span className="font-normal">{selectedSizeName}</span>
                   </p>
-                  <button className="text-xs text-ink underline underline-offset-2">Size Guide →</button>
+                  <button type="button" onClick={() => setSizeGuideOpen(true)} className="text-xs text-ink underline underline-offset-2">Size Guide →</button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {sizes.map((s) => (
@@ -465,7 +530,7 @@ export default function ProductDetail() {
 
             {/* Accordions */}
             <div className="border-t border-beige">
-              {ACCORDIONS.map((acc, i) => (
+              {accordions.map((acc, i) => (
                 <div key={acc.title} className="border-b border-beige">
                   <button
                     onClick={() => setOpenAcc(openAcc === i ? null : i)}
@@ -549,6 +614,7 @@ export default function ProductDetail() {
         </div>
         )}
       </div>
+      {sizeGuideOpen && <SizeGuideModal onClose={() => setSizeGuideOpen(false)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import useTitle from '../utils/useTitle';
+import { getCommerceSettings } from '../utils/settings';
 
 function PageShell({ title, subtitle, children }) {
   return (
@@ -23,7 +24,7 @@ function PageShell({ title, subtitle, children }) {
   );
 }
 
-const SIZE_CHART = [
+export const SIZE_CHART = [
   ['XS', '28-30', '32-34', '24-26'],
   ['S', '30-32', '34-36', '26-28'],
   ['M', '32-34', '36-38', '28-30'],
@@ -128,7 +129,9 @@ export function About() {
   );
 }
 
-const POLICIES = [
+// Builds the policy text from real store settings so it can never go stale
+// against what Store Settings / Contact Details actually say.
+const buildPolicies = (commerce) => [
   {
     id: 'exchange',
     title: 'Exchange & Return Policy',
@@ -137,7 +140,7 @@ const POLICIES = [
   {
     id: 'shipping',
     title: 'Shipping Policy',
-    body: `Orders ship within 24 hours on business days. Standard delivery takes 3–5 business days across India. Shipping is free on orders of ₹599 and above; a flat ₹50 applies below that. You'll receive an order confirmation by email as soon as your order is placed.`,
+    body: `Orders ship within 24 hours on business days. Standard delivery takes 3–5 business days across India. Shipping is free on orders of ₹${commerce.freeShippingThreshold} and above; a flat ₹${commerce.shippingFee} applies below that. You'll receive an order confirmation by email as soon as your order is placed.`,
   },
   {
     id: 'track',
@@ -147,13 +150,24 @@ const POLICIES = [
   {
     id: 'contact',
     title: 'Contact Us',
-    body: `We're here to help! Reach us on Instagram @ninesecrets, on WhatsApp, or by email at care@ninesecrets.com. Our team replies within 24 hours on business days.`,
+    body: (() => {
+      const channels = [
+        commerce.instagramUrl && 'on Instagram',
+        commerce.whatsappNumber && 'on WhatsApp',
+        commerce.contactEmail && `by email at ${commerce.contactEmail}`,
+      ].filter(Boolean);
+      const reachUs = channels.length ? `Reach us ${channels.join(', ')}.` : '';
+      return `We're here to help! ${reachUs} Our team replies within 24 hours on business days.`;
+    })(),
   },
 ];
 
 export function Policies() {
   useTitle('Help & Policies');
   const { hash } = useLocation();
+  const [commerce, setCommerce] = useState({ freeShippingThreshold: 599, shippingFee: 50, instagramUrl: '', whatsappNumber: '', contactEmail: '' });
+  useEffect(() => { getCommerceSettings().then(setCommerce); }, []);
+  const POLICIES = buildPolicies(commerce);
   useEffect(() => {
     if (hash)
       document

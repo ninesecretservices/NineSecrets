@@ -193,6 +193,14 @@ export default function MasterData({ title, endpoint, columns, formSchema, descr
                         onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                         className="h-11 w-20 cursor-pointer rounded-xl border border-beige bg-white p-1"
                       />
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        value={formData[field.key] || ''}
+                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                        className={`${inputClass} min-h-[120px] resize-y`}
+                        required={field.required}
+                        placeholder={field.placeholder}
+                      />
                     ) : (
                       <input
                         type={field.type || 'text'}

@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Upload, ImageOff, ExternalLink, Plus, Trash2, X, ChevronUp, ChevronDown,
-  Eye, EyeOff, Rocket, History, Save, Monitor, Smartphone, PanelRightClose, PanelRight, CircleCheck,
+  Eye, EyeOff, Rocket, History, Save, Monitor, Smartphone, PanelRightClose, PanelRight, CircleCheck, Video,
 } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
-import { uploadFile, deleteImage } from '../../utils/upload';
+import { uploadFile, uploadMedia, deleteImage } from '../../utils/upload';
 import { HOME_DEFAULTS, SECTION_LABELS, normalizeHomepage } from '../../utils/homeContent';
 
 const inputClass =
@@ -590,6 +590,10 @@ export default function Homepage() {
             <label className={labelClass}>Subtext</label>
             <textarea rows={2} className={inputClass} value={content.hero.subtext} onChange={(e) => patch(['hero'], { subtext: e.target.value })} />
           </div>
+          <div>
+            <label className={labelClass}>Trust line (optional — e.g. "Free Shipping · COD Available · Easy Return")</label>
+            <input className={inputClass} placeholder="Leave blank to hide" value={content.hero.features || ''} onChange={(e) => patch(['hero'], { features: e.target.value })} />
+          </div>
           <div className="max-w-xs">
             <label className={labelClass}>Button Label</label>
             <input className={inputClass} value={content.hero.ctaLabel} onChange={(e) => patch(['hero'], { ctaLabel: e.target.value })} />
@@ -651,6 +655,7 @@ export default function Homepage() {
                 </div>
                 <textarea rows={2} className={`${inputClass} mt-3 font-heading italic`} placeholder="Slide heading (line breaks kept)" value={sl.heading || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, heading: e.target.value } : x)) })} />
                 <textarea rows={2} className={`${inputClass} mt-3`} placeholder="Subtext" value={sl.subtext || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, subtext: e.target.value } : x)) })} />
+                <input className={`${inputClass} mt-3`} placeholder="Trust line (optional)" value={sl.features || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, features: e.target.value } : x)) })} />
                 <div className="mt-3 max-w-md">
                   <LinkPicker
                     value={sl.link || '/collection'}
@@ -687,6 +692,7 @@ export default function Homepage() {
               </div>
               <textarea rows={2} className={inputClass} placeholder="Campaign heading (line breaks kept)" value={content.hero.campaign.heading} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, heading: e.target.value } })} />
               <textarea rows={2} className={inputClass} placeholder="Campaign subtext" value={content.hero.campaign.subtext} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, subtext: e.target.value } })} />
+              <input className={inputClass} placeholder="Campaign trust line (optional)" value={content.hero.campaign.features || ''} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, features: e.target.value } })} />
             </div>
           )}
         </div>
@@ -830,36 +836,49 @@ export default function Homepage() {
           <label className={labelClass}>Behold Feed URL (optional — auto-syncs the grid)</label>
           <input className={inputClass} placeholder="https://feeds.behold.so/XXXXXXXXXX" value={content.instagram.beholdUrl || ''} onChange={(e) => patch(['instagram'], { beholdUrl: e.target.value.trim() })} />
         </div>
-        <label className={labelClass}>Manual images (used when no Behold feed)</label>
+        <label className={labelClass}>Manual photos & videos (used when no Behold feed)</label>
+        <p className="mb-3 text-xs text-mauve">Short video clips work here too — a mute icon shows on the tile automatically, matching Instagram Reels-style previews.</p>
         <div className="flex flex-wrap items-center gap-3">
-          {(content.instagram.images || []).map((img, i) => (
-            <div key={i} className="relative">
-              <img src={resolveImageUrl(img)} alt="" className="h-20 w-20 rounded-xl border border-beige object-cover" />
-              <button
-                onClick={() => {
-                  deleteImage(img);
-                  patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) });
-                }}
-                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
-                aria-label="Remove"
-              >
-                <X size={11} />
-              </button>
-            </div>
-          ))}
+          {(content.instagram.images || []).map((item, i) => {
+            const media = typeof item === 'string' ? { url: item, type: 'image' } : item;
+            return (
+              <div key={i} className="relative">
+                {media.type === 'video' ? (
+                  <video src={resolveImageUrl(media.url)} className="h-20 w-20 rounded-xl border border-beige object-cover" muted playsInline />
+                ) : (
+                  <img src={resolveImageUrl(media.url)} alt="" className="h-20 w-20 rounded-xl border border-beige object-cover" />
+                )}
+                {media.type === 'video' && (
+                  <span className="absolute bottom-1 left-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink/70 text-cream">
+                    <Video size={9} />
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    deleteImage(media.url);
+                    patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) });
+                  }}
+                  className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
+                  aria-label="Remove"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            );
+          })}
           {(content.instagram.images || []).length < 6 && (
             <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-beige text-mauve transition-colors hover:border-ink hover:text-ink">
               <Plus size={16} />
               <span className="text-[9px] uppercase">Add</span>
               <input
-                type="file" accept="image/*" multiple className="hidden"
+                type="file" accept="image/*,video/*" multiple className="hidden"
                 onChange={async (e) => {
                   const files = [...e.target.files];
-                  const urls = [];
+                  const uploaded = [];
                   for (const f of files) {
-                    try { urls.push(await uploadFile(f, 'site/instagram')); } catch { /* skip failed */ }
+                    try { uploaded.push(await uploadMedia(f, 'site/instagram')); } catch { /* skip failed */ }
                   }
-                  patch(['instagram'], { images: [...(content.instagram.images || []), ...urls].slice(0, 6) });
+                  patch(['instagram'], { images: [...(content.instagram.images || []), ...uploaded].slice(0, 6) });
                 }}
               />
             </label>

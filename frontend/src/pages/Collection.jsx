@@ -8,7 +8,6 @@ import { toCardProduct } from '../utils/designData';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
 
-const FILTERS = ['All', 'Padded', 'Non-Padded', 'Cotton', 'Push-Up', 'Plus Size'];
 const SORTS = [
   { value: 'newest', label: 'Newest' },
   { value: 'price-asc', label: 'Price: Low to High' },
@@ -117,15 +116,20 @@ export default function Collection() {
 
   useTitle(bestsellers ? 'Bestsellers' : urlCat || (urlSearch ? `Search: ${urlSearch}` : 'Collection'));
   const [sort, setSort] = useState(params.get('sort') || 'newest');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFit, setActiveFit] = useState(''); // Fit _id, empty = "All"
+  const [fits, setFits] = useState([]);
   const [products, setProducts] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Filter pills search the catalogue by name; the URL ?search= term wins when set.
-  const effectiveSearch = urlSearch || (activeFilter !== 'All' ? activeFilter : '');
+  // Filter pills come from real Fit master data, not a hardcoded guess.
+  useEffect(() => {
+    api.post('/fit/public-list', { page: 1, limit: 50 })
+      .then((res) => setFits(res.data.data.docs || []))
+      .catch(() => {});
+  }, []);
 
   const fetchPage = useCallback(async (pageNum, append) => {
     append ? setLoadingMore(true) : setLoading(true);
@@ -136,7 +140,8 @@ export default function Collection() {
         sort,
         ...(urlItem && { item: urlItem }),
         ...(bestsellers && { featured: true }),
-        ...(effectiveSearch && { search: effectiveSearch }),
+        ...(urlSearch && { search: urlSearch }),
+        ...(activeFit && { fit: activeFit }),
       });
       const { docs = [], total: t = 0 } = res.data.data;
       const cards = docs.map(toCardProduct);
@@ -148,7 +153,7 @@ export default function Collection() {
     }
     setLoading(false);
     setLoadingMore(false);
-  }, [effectiveSearch, sort, urlItem, bestsellers]);
+  }, [urlSearch, activeFit, sort, urlItem, bestsellers]);
 
   useEffect(() => {
     fetchPage(1, false);
@@ -179,20 +184,28 @@ export default function Collection() {
       <div className="sticky top-16 z-40 border-b border-beige bg-surface py-3.5">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-6 md:px-10">
           <div className="no-scrollbar flex flex-grow gap-3 overflow-x-auto">
-          {FILTERS.map((f) => (
+          <button
+            onClick={() => { setActiveFit(''); if (urlSearch) navigate('/collection'); }}
+            className={`flex-shrink-0 whitespace-nowrap border px-[18px] py-[7px] text-xs font-medium transition-all ${
+              !activeFit && !urlSearch ? 'border-ink bg-ink text-cream' : 'border-beige bg-transparent text-ink'
+            }`}
+          >
+            All
+          </button>
+          {fits.map((f) => (
             <button
-              key={f}
+              key={f._id}
               onClick={() => {
-                setActiveFilter(f);
+                setActiveFit(f._id);
                 if (urlSearch) navigate('/collection');
               }}
               className={`flex-shrink-0 whitespace-nowrap border px-[18px] py-[7px] text-xs font-medium transition-all ${
-                activeFilter === f && !urlSearch
+                activeFit === f._id && !urlSearch
                   ? 'border-ink bg-ink text-cream'
                   : 'border-beige bg-transparent text-ink'
               }`}
             >
-              {f}
+              {f.name}
             </button>
           ))}
           </div>

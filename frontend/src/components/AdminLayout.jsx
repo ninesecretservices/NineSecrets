@@ -3,7 +3,7 @@ import { Outlet, NavLink, Link, Navigate, useNavigate, useLocation } from 'react
 import {
   LayoutDashboard, Package, ShoppingCart, Users, LogOut, Store,
   Building2, Shirt, PenTool, Palette, Layers, Ruler, Scaling, Tag, Image, Settings, FileSpreadsheet,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, FileText,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 
@@ -38,6 +38,7 @@ const NAV_SECTIONS = [
       { to: '/admin/fits', label: 'Fits', icon: Scaling },
       { to: '/admin/fabrics', label: 'Fabrics', icon: Layers },
       { to: '/admin/designs', label: 'Designs', icon: PenTool },
+      { to: '/admin/description-templates', label: 'Description Templates', icon: FileText },
     ],
   },
   {

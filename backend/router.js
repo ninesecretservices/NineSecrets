@@ -22,6 +22,8 @@ import UploadController from './controller/upload.js';
 import ReviewController from './controller/review.js';
 import CouponController from './controller/coupon.js';
 import SettingController from './controller/setting.js';
+import DescriptionTemplateController from './controller/descriptionTemplate.js';
+import AiDescriptionController from './controller/aiDescription.js';
 
 // ---------------------------------------------------------
 // Controller Instances
@@ -42,6 +44,8 @@ const uploadController = new UploadController();
 const reviewController = new ReviewController();
 const couponController = new CouponController();
 const settingController = new SettingController();
+const descriptionTemplateController = new DescriptionTemplateController();
+const aiDescriptionController = new AiDescriptionController();
 
 // ---------------------------------------------------------
 // Auth Routes
@@ -113,6 +117,7 @@ router.post('/fabric/detail', auth, fabricController.fabricDetail, responsedata)
 // ---------------------------------------------------------
 // Fit Routes
 // ---------------------------------------------------------
+router.post('/fit/public-list', fitController.fitList, responsedata); // storefront collection filter pills
 router.post('/fit/list', auth, fitController.fitList, responsedata);
 router.post('/fit/create', auth, requireRole(['superadmin','admin']), fitController.fitCreate, responsedata);
 router.post('/fit/update', auth, requireRole(['superadmin','admin']), fitController.fitUpdate, responsedata);
@@ -142,6 +147,16 @@ router.post('/product/update', auth, requireRole(['superadmin','admin']), produc
 router.post('/product/delete', auth, requireRole(['superadmin']), productController.productDelete, responsedata);
 router.post('/product/detail', auth, productController.productDetail, responsedata);
 router.post('/product/stock-import', auth, requireRole(['superadmin','admin']), productController.stockImport, responsedata);
+router.post('/product/ai-description', auth, requireRole(['superadmin','admin']), aiDescriptionController.generateDescription, responsedata);
+
+// ---------------------------------------------------------
+// Description Template Routes (reusable snippets for the product Description field)
+// ---------------------------------------------------------
+router.post('/description-template/list', auth, descriptionTemplateController.descriptionTemplateList, responsedata);
+router.post('/description-template/create', auth, requireRole(['superadmin','admin']), descriptionTemplateController.descriptionTemplateCreate, responsedata);
+router.post('/description-template/update', auth, requireRole(['superadmin','admin']), descriptionTemplateController.descriptionTemplateUpdate, responsedata);
+router.post('/description-template/delete', auth, requireRole(['superadmin']), descriptionTemplateController.descriptionTemplateDelete, responsedata);
+router.post('/description-template/detail', auth, descriptionTemplateController.descriptionTemplateDetail, responsedata);
 
 // ---------------------------------------------------------
 // Cart Routes

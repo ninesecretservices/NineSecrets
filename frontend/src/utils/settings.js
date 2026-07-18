@@ -29,5 +29,9 @@ export const getCommerceSettings = () =>
     codEnabled: true,
     whatsappNumber: '',
     instagramUrl: '',
+    contactPhone: '',
+    contactEmail: '',
+    contactAddress: '',
+    facebookUrl: '',
     ...c,
   }));

@@ -232,7 +232,7 @@ export default function Collection() {
           </div>
         ) : products.length === 0 ? (
           <div className="py-32 text-center text-mauve">
-            No products found{effectiveSearch ? ` for “${effectiveSearch}”` : ''}.
+            No products found{urlSearch ? ` for “${urlSearch}”` : ''}.
           </div>
         ) : (
           <>

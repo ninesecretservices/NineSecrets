@@ -103,26 +103,44 @@ function HeroCarousel({ content }) {
 // swipeable rows with visible arrow controls at the edges.
 function HScroller({ children, itemWidth = 320, arrowClassName = '' }) {
   const ref = useRef(null);
+  const [overflowing, setOverflowing] = useState(false);
   const scrollBy = (dir) => ref.current?.scrollBy({ left: dir * itemWidth, behavior: 'smooth' });
+
+  // Re-checked after every render (cheap — one layout read) so a short row
+  // (e.g. only 3 categories filled in) is centered with no dead arrows,
+  // while a row that actually overflows keeps the scrollable/arrow behavior.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  });
+
   return (
     <div className="relative">
-      <button
-        onClick={() => scrollBy(-1)}
-        aria-label="Scroll left"
-        className={`absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <div ref={ref} className="no-scrollbar flex gap-7 overflow-x-auto pb-4">
+      {overflowing && (
+        <button
+          onClick={() => scrollBy(-1)}
+          aria-label="Scroll left"
+          className={`absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
+        >
+          <ChevronLeft size={18} />
+        </button>
+      )}
+      <div ref={ref} className={`no-scrollbar flex gap-7 overflow-x-auto pb-4 ${overflowing ? '' : 'justify-center'}`}>
         {children}
       </div>
-      <button
-        onClick={() => scrollBy(1)}
-        aria-label="Scroll right"
-        className={`absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
-      >
-        <ChevronRight size={18} />
-      </button>
+      {overflowing && (
+        <button
+          onClick={() => scrollBy(1)}
+          aria-label="Scroll right"
+          className={`absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
+        >
+          <ChevronRight size={18} />
+        </button>
+      )}
     </div>
   );
 }

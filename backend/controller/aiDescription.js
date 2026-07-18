@@ -3,7 +3,7 @@ import ApiError from '../utils/ApiError.js';
 // Google AI Studio / Gemini API — Flash-Lite is the cheapest multimodal model
 // that still reliably describes a product photo, which is all this needs.
 // Override with GEMINI_MODEL if Google renames/retires this one.
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const GEMINI_URL = (key) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
 

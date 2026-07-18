@@ -1,5 +1,3 @@
-import { unsplash, heroImage, promiseImage, instaImages } from './designData';
-
 // Single source of truth for the homepage content structure. The admin editor
 // edits this shape; the storefront renders it. Anything unset falls back here.
 
@@ -43,12 +41,10 @@ export const HOME_DEFAULTS = {
     { icon: '✦', label: '7-Day Easy Exchange' },
     { icon: '✦', label: 'Sizes S – 3XL' },
   ],
-  categories: [
-    { image: unsplash('photo-1599836641623-a596a2c44abc', 600, 700), title: 'Bras', count: '32 styles', link: '/collection?search=Bra' },
-    { image: unsplash('photo-1612194528832-e5336ec3ff9d', 600, 700), title: 'Innerwear Sets', count: '18 styles', link: '/collection?search=Set' },
-    { image: unsplash('photo-1770294758942-7ce9ca052986', 600, 700), title: 'Nightwear', count: '24 styles', link: '/collection?search=Night' },
-    { image: unsplash('photo-1766056278798-39cabf7ca628', 600, 700), title: 'Loungewear', count: '14 styles', link: '/collection?search=Lounge' },
-  ],
+  // No placeholder tiles — the admin adds real category images/titles from
+  // Admin → Homepage → Categories. The circle row simply doesn't render
+  // until at least one tile exists (see CategoryCircles in Home.jsx).
+  categories: [],
   bestsellers: { eyebrow: 'Best Sellers', heading: 'Your kind of cosy', mode: 'featured', productIds: [], count: 4 },
   justarrived: { eyebrow: 'Just Arrived', heading: 'fresh every night', mode: 'newest', productIds: [], count: 4 },
   promise: {
@@ -60,10 +56,6 @@ export const HOME_DEFAULTS = {
   },
   instagram: { profileUrl: 'https://instagram.com/ninesecrets', beholdUrl: '', images: [] },
 };
-
-export const HERO_DEFAULT_IMAGE = heroImage;
-export const PROMISE_DEFAULT_IMAGE = promiseImage;
-export const INSTA_DEFAULT_IMAGES = instaImages;
 
 // Merge saved content over defaults; migrate legacy shapes (plain-string announcements).
 export const normalizeHomepage = (saved = {}) => {

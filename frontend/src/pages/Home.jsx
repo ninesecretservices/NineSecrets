@@ -5,12 +5,9 @@ import api, { resolveImageUrl } from '../utils/api';
 import { getHomepageSettings } from '../utils/settings';
 import ProductCard from '../components/ProductCard';
 import useTitle from '../utils/useTitle';
-import { demoProducts, toCardProduct } from '../utils/designData';
+import { toCardProduct } from '../utils/designData';
 import {
   HOME_DEFAULTS,
-  HERO_DEFAULT_IMAGE,
-  PROMISE_DEFAULT_IMAGE,
-  INSTA_DEFAULT_IMAGES,
   normalizeHomepage,
   activeHero,
   heroSlides,
@@ -35,12 +32,14 @@ function HeroCarousel({ content }) {
 
   return (
     <section className="relative h-[78vh] min-h-[480px] w-full overflow-hidden bg-ink md:h-[88vh]">
-      <img
-        key={idx}
-        src={resolveImageUrl(h.image || HERO_DEFAULT_IMAGE)}
-        alt="Nine Secrets hero"
-        className="absolute inset-0 h-full w-full animate-[fadeSlide_0.6s_ease-out] object-cover object-top"
-      />
+      {h.image && (
+        <img
+          key={idx}
+          src={resolveImageUrl(h.image)}
+          alt="Nine Secrets hero"
+          className="absolute inset-0 h-full w-full animate-[fadeSlide_0.6s_ease-out] object-cover object-top"
+        />
+      )}
       <div className="absolute inset-0 bg-ink/30" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
@@ -231,9 +230,9 @@ function useRowProducts(rowConfig) {
         if (rowConfig.mode === 'custom' && rowConfig.productIds?.length) body.ids = rowConfig.productIds;
         const res = await api.post('/product/public-list', body);
         const docs = res.data.data.docs || [];
-        if (alive) setProducts(docs.length > 0 ? docs.map(toCardProduct) : demoProducts.slice(0, rowConfig.count || 4));
+        if (alive) setProducts(docs.map(toCardProduct));
       } catch {
-        if (alive) setProducts(demoProducts.slice(0, rowConfig.count || 4));
+        if (alive) setProducts([]);
       }
     })();
     return () => { alive = false; };
@@ -341,13 +340,15 @@ function PromiseSection({ content }) {
   return (
     <section className="bg-beige">
       <div className="flex min-h-[520px] flex-col md:flex-row">
-        <div className="max-h-[600px] overflow-hidden md:w-1/2">
-          <img
-            src={resolveImageUrl(content.image || PROMISE_DEFAULT_IMAGE)}
-            alt="Nine Secrets promise"
-            loading="lazy"
-            className="h-full w-full object-cover object-top"
-          />
+        <div className="max-h-[600px] overflow-hidden bg-blush/40 md:w-1/2">
+          {content.image && (
+            <img
+              src={resolveImageUrl(content.image)}
+              alt="Nine Secrets promise"
+              loading="lazy"
+              className="h-full w-full object-cover object-top"
+            />
+          )}
         </div>
         <div className="flex flex-col justify-center px-10 py-16 md:w-1/2 md:px-20">
           <p className="mb-5 text-[11px] uppercase tracking-[0.16em] text-ink">{content.eyebrow}</p>
@@ -404,7 +405,8 @@ function InstagramSection({ content }) {
     fetchBeholdPosts(content.beholdUrl).then((p) => p.length && setPosts(p)).catch(() => {});
   }, [content.beholdUrl]);
 
-  const fallbackImages = content.images?.length ? content.images : INSTA_DEFAULT_IMAGES;
+  const manualImages = content.images || [];
+  if (!posts && manualImages.length === 0) return null;
 
   return (
     <section className="bg-cream py-20">
@@ -416,7 +418,7 @@ function InstagramSection({ content }) {
         <div className="mb-12 grid grid-cols-3 gap-3 md:grid-cols-6">
           {posts
             ? posts.map((p, i) => <InstaTile key={i} src={p.img} href={p.link} />)
-            : fallbackImages.map((src, i) => <InstaTile key={i} src={resolveImageUrl(src)} />)}
+            : manualImages.map((src, i) => <InstaTile key={i} src={resolveImageUrl(src)} />)}
         </div>
         <div className="flex justify-center">
           <a

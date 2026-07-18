@@ -4,7 +4,7 @@ import { Star, Heart, Minus, Plus, ChevronDown, ChevronUp, BadgeCheck } from 'lu
 import api from '../utils/api';
 import useStore from '../store/useStore';
 import ProductCard, { ColorDot } from '../components/ProductCard';
-import { demoProducts, toCardProduct, unsplash } from '../utils/designData';
+import { toCardProduct } from '../utils/designData';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
 
@@ -111,6 +111,10 @@ function ZoomImage({ src, alt }) {
     setOrigin(`${x}% ${y}%`);
   };
 
+  if (!src) {
+    return <div className="flex aspect-[4/5] items-center justify-center bg-surface text-xs text-mauve">No image yet</div>;
+  }
+
   return (
     <div
       ref={ref}
@@ -137,7 +141,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [related, setRelated] = useState(demoProducts.slice(0, 4));
+  const [related, setRelated] = useState([]);
 
   const [imgIdx, setImgIdx] = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
@@ -182,7 +186,7 @@ export default function ProductDetail() {
           setRelated(docs.filter((d) => d.slug !== slug).map(toCardProduct));
         }
       } catch {
-        // keep demo related products
+        // keep related empty — the "You may also like" row just won't render
       }
       setLoading(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -202,7 +206,7 @@ export default function ProductDetail() {
 
   const gallery = product.images?.length > 0
     ? product.images
-    : [product.thumbnail || unsplash('photo-1612194528832-e5336ec3ff9d', 800, 1000)];
+    : product.thumbnail ? [product.thumbnail] : [];
 
   const colours = [...new Map((product.variants || []).map((v) => [v.colour?._id, v.colour])).values()].filter(Boolean);
   const sizes = [...new Map((product.variants || []).map((v) => [v.size?._id, v.size])).values()].filter(Boolean);
@@ -528,6 +532,7 @@ export default function ProductDetail() {
         </div>
 
         {/* You may also like */}
+        {related.length > 0 && (
         <div className="mt-20 border-t border-beige pt-14">
           <h2 className="mb-10 font-heading italic text-ink" style={{ fontSize: 'clamp(26px, 3vw, 36px)' }}>
             You may also like
@@ -542,6 +547,7 @@ export default function ProductDetail() {
             ))}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

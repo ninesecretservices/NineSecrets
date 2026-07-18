@@ -49,13 +49,15 @@ function GridCard({ product, onClick }) {
   return (
     <div className="flex flex-col">
       <div className="group relative cursor-pointer overflow-hidden bg-surface" onClick={onClick}>
-        <div className="relative aspect-square overflow-hidden">
-          <img
-            src={product.img}
-            alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-[550ms] group-hover:scale-[1.03]"
-          />
+        <div className="relative aspect-square overflow-hidden bg-beige/40">
+          {product.img && (
+            <img
+              src={product.img}
+              alt={product.name}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-[550ms] group-hover:scale-[1.03]"
+            />
+          )}
           <div className="absolute left-0 top-0">
             <TagBadge label={product.tag} green={product.tag === 'NEW IN'} />
           </div>

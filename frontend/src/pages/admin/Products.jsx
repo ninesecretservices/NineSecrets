@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Pencil, Trash2, Plus, X, Upload, ImageOff } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
+import { uploadFile, deleteImage, slugifyFolder } from '../../utils/upload';
 import { inr } from '../../utils/format';
 
 const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '' };
@@ -208,20 +209,22 @@ export default function Products() {
     );
   };
 
-  const uploadFile = async (file) => {
-    const fd = new FormData();
-    fd.append('image', file);
-    const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-    return res.data.data.url;
+  // Groups product photos by department in Cloudinary, e.g. products/lounge-sets.
+  // Falls back to the flat default folder if no department is picked yet.
+  const productImageFolder = () => {
+    const dept = master.departments.find((d) => d._id === formData.department);
+    return dept ? `products/${slugifyFolder(dept.name)}` : undefined;
   };
 
   const handleUpload = async (file) => {
     if (!file) return;
     setUploading(true);
     setFormError('');
+    const previous = formData.thumbnail;
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, productImageFolder());
       setFormData((f) => ({ ...f, thumbnail: url }));
+      if (previous) deleteImage(previous);
     } catch (err) {
       setFormError(err.response?.data?.message || 'Image upload failed');
     }
@@ -233,9 +236,10 @@ export default function Products() {
     setUploading(true);
     setFormError('');
     try {
+      const folder = productImageFolder();
       const urls = [];
       for (const file of files) {
-        urls.push(await uploadFile(file));
+        urls.push(await uploadFile(file, folder));
       }
       setFormData((f) => ({ ...f, images: [...(f.images || []), ...urls] }));
     } catch (err) {
@@ -459,7 +463,11 @@ export default function Products() {
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e.target.files[0])} />
                   </label>
                   {formData.thumbnail && (
-                    <button type="button" onClick={() => setFormData({ ...formData, thumbnail: '' })} className="text-xs text-mauve underline">
+                    <button
+                      type="button"
+                      onClick={() => { deleteImage(formData.thumbnail); setFormData({ ...formData, thumbnail: '' }); }}
+                      className="text-xs text-mauve underline"
+                    >
                       Remove
                     </button>
                   )}
@@ -473,7 +481,10 @@ export default function Products() {
                       <img src={resolveImageUrl(img)} alt="" className="h-20 w-16 rounded-lg border border-beige object-cover" />
                       <button
                         type="button"
-                        onClick={() => setFormData((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
+                        onClick={() => {
+                          deleteImage(img);
+                          setFormData((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }));
+                        }}
                         className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
                         aria-label="Remove image"
                       >

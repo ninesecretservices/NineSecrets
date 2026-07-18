@@ -195,5 +195,6 @@ router.post('/setting/revert', auth, requireRole(['superadmin']), settingControl
 // ---------------------------------------------------------
 import upload from './middleware/upload.js';
 router.post('/upload/image', auth, upload.single('image'), uploadController.uploadImage, responsedata);
+router.post('/upload/delete', auth, requireRole(['superadmin', 'admin']), uploadController.deleteImage, responsedata);
 
 export default router;

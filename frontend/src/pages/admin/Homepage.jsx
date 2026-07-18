@@ -4,6 +4,7 @@ import {
   Eye, EyeOff, Rocket, History, Save, Monitor, Smartphone, PanelRightClose, PanelRight, CircleCheck,
 } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
+import { uploadFile, deleteImage } from '../../utils/upload';
 import { HOME_DEFAULTS, SECTION_LABELS, normalizeHomepage } from '../../utils/homeContent';
 
 const inputClass =
@@ -11,13 +12,6 @@ const inputClass =
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink';
 const pillBtn =
   'flex items-center gap-1.5 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-all';
-
-const uploadFile = async (file) => {
-  const fd = new FormData();
-  fd.append('image', file);
-  const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-  return res.data.data.url;
-};
 
 function Card({ title, hint, children }) {
   return (
@@ -30,7 +24,7 @@ function Card({ title, hint, children }) {
   );
 }
 
-function ImagePicker({ value, onChange, defaultLabel = 'Using default image', className = 'h-32 w-24' }) {
+function ImagePicker({ value, onChange, defaultLabel = 'Using default image', className = 'h-32 w-24', folder = 'site' }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex items-center gap-4">
@@ -52,13 +46,21 @@ function ImagePicker({ value, onChange, defaultLabel = 'Using default image', cl
               const f = e.target.files[0];
               if (!f) return;
               setBusy(true);
-              try { onChange(await uploadFile(f)); } catch { /* surfaced elsewhere */ }
+              const previous = value;
+              try {
+                onChange(await uploadFile(f, folder));
+                if (previous) deleteImage(previous);
+              } catch { /* surfaced elsewhere */ }
               setBusy(false);
             }}
           />
         </label>
         {value && (
-          <button type="button" onClick={() => onChange('')} className="w-fit text-xs text-mauve underline">
+          <button
+            type="button"
+            onClick={() => { deleteImage(value); onChange(''); }}
+            className="w-fit text-xs text-mauve underline"
+          >
             Reset to default
           </button>
         )}
@@ -573,7 +575,7 @@ export default function Homepage() {
       <Card title="Hero" hint="The big banner at the top of the home page.">
         <div className="mb-5">
           <label className={labelClass}>Image (portrait, ~900×1100)</label>
-          <ImagePicker value={content.hero.image} onChange={(v) => patch(['hero'], { image: v })} />
+          <ImagePicker value={content.hero.image} onChange={(v) => patch(['hero'], { image: v })} folder="site/hero" />
         </div>
         <div className="space-y-4">
           <div>
@@ -624,7 +626,10 @@ export default function Homepage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink">Slide {i + 2}</p>
                   <button
                     type="button"
-                    onClick={() => patch(['hero'], { slides: content.hero.slides.filter((_, j) => j !== i) })}
+                    onClick={() => {
+                      if (sl.image) deleteImage(sl.image);
+                      patch(['hero'], { slides: content.hero.slides.filter((_, j) => j !== i) });
+                    }}
                     className="rounded-lg p-1.5 text-red-700 hover:bg-blush/60"
                     aria-label="Remove slide"
                   >
@@ -637,6 +642,7 @@ export default function Homepage() {
                     onChange={(v) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, image: v } : x)) })}
                     className="h-24 w-20"
                     defaultLabel="No image"
+                    folder="site/hero"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -673,7 +679,7 @@ export default function Homepage() {
               <ScheduleFields value={content.hero.campaign} onChange={(p) => patch(['hero'], { campaign: { ...content.hero.campaign, ...p } })} />
               <div>
                 <label className={labelClass}>Campaign Image (optional — falls back to the main hero image)</label>
-                <ImagePicker value={content.hero.campaign.image} onChange={(v) => patch(['hero'], { campaign: { ...content.hero.campaign, image: v } })} className="h-24 w-20" defaultLabel="Main hero image" />
+                <ImagePicker value={content.hero.campaign.image} onChange={(v) => patch(['hero'], { campaign: { ...content.hero.campaign, image: v } })} className="h-24 w-20" defaultLabel="Main hero image" folder="site/hero" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input className={inputClass} placeholder="Campaign eyebrow" value={content.hero.campaign.eyebrow} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, eyebrow: e.target.value } })} />
@@ -752,7 +758,7 @@ export default function Homepage() {
         <div className="space-y-4">
           {content.categories.map((cat, i) => (
             <div key={i} className="flex flex-wrap items-start gap-4 rounded-xl border border-beige p-3">
-              <ImagePicker value={cat.image} onChange={(v) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, image: v } : x)))} className="h-24 w-20" defaultLabel="No image" />
+              <ImagePicker value={cat.image} onChange={(v) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, image: v } : x)))} className="h-24 w-20" defaultLabel="No image" folder="site/categories" />
               <div className="min-w-[220px] flex-grow space-y-2">
                 <input className={inputClass} placeholder="Title" value={cat.title} onChange={(e) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
                 <input className={inputClass} placeholder="Subtitle (e.g. 32 styles)" value={cat.count} onChange={(e) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, count: e.target.value } : x)))} />
@@ -763,7 +769,15 @@ export default function Homepage() {
                   products={allProducts}
                 />
               </div>
-              <button onClick={() => patch('categories', content.categories.filter((_, j) => j !== i))} disabled={content.categories.length <= 1} className="rounded-lg p-2 text-red-700 hover:bg-blush/60 disabled:opacity-30" aria-label="Remove tile">
+              <button
+                onClick={() => {
+                  if (cat.image) deleteImage(cat.image);
+                  patch('categories', content.categories.filter((_, j) => j !== i));
+                }}
+                disabled={content.categories.length <= 1}
+                className="rounded-lg p-2 text-red-700 hover:bg-blush/60 disabled:opacity-30"
+                aria-label="Remove tile"
+              >
                 <Trash2 size={15} strokeWidth={1.5} />
               </button>
             </div>
@@ -792,7 +806,7 @@ export default function Homepage() {
       <Card title="Promise Section" hint="The beige brand-story split section.">
         <div className="mb-5">
           <label className={labelClass}>Image</label>
-          <ImagePicker value={content.promise.image} onChange={(v) => patch(['promise'], { image: v })} />
+          <ImagePicker value={content.promise.image} onChange={(v) => patch(['promise'], { image: v })} folder="site/promise" />
         </div>
         <div className="space-y-4">
           <input className={inputClass} placeholder="Eyebrow" value={content.promise.eyebrow} onChange={(e) => patch(['promise'], { eyebrow: e.target.value })} />
@@ -821,7 +835,14 @@ export default function Homepage() {
           {(content.instagram.images || []).map((img, i) => (
             <div key={i} className="relative">
               <img src={resolveImageUrl(img)} alt="" className="h-20 w-20 rounded-xl border border-beige object-cover" />
-              <button onClick={() => patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) })} className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream" aria-label="Remove">
+              <button
+                onClick={() => {
+                  deleteImage(img);
+                  patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) });
+                }}
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
+                aria-label="Remove"
+              >
                 <X size={11} />
               </button>
             </div>
@@ -836,7 +857,7 @@ export default function Homepage() {
                   const files = [...e.target.files];
                   const urls = [];
                   for (const f of files) {
-                    try { urls.push(await uploadFile(f)); } catch { /* skip failed */ }
+                    try { urls.push(await uploadFile(f, 'site/instagram')); } catch { /* skip failed */ }
                   }
                   patch(['instagram'], { images: [...(content.instagram.images || []), ...urls].slice(0, 6) });
                 }}

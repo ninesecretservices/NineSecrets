@@ -206,6 +206,32 @@ class OrderController {
     next();
   }
 
+  // Public: lets a guest (COD, no account) look up an order with just its
+  // number + the phone number on the shipping address — no other order
+  // details are exposed by order number alone, so this can't be used to
+  // enumerate/scrape other customers' orders.
+  async orderTrack(req, res, next) {
+    const { orderNumber, phone } = req.body;
+    if (!orderNumber || !phone) throw new ApiError(400, 'Order number and phone number are required');
+
+    const normalize = (p) => (p || '').replace(/\D/g, '').slice(-10);
+    const wantPhone = normalize(phone);
+
+    const order = wantPhone.length === 10
+      ? await Order.findOne({ orderNumber: orderNumber.trim() })
+          .populate('items.product', 'name thumbnail slug')
+          .populate('items.variant.colour', 'name hexCode')
+          .populate('items.variant.size', 'name')
+      : null;
+
+    if (!order || normalize(order.shippingAddress?.phone) !== wantPhone) {
+      throw new ApiError(404, "No order found — check your order number and phone number");
+    }
+
+    res.locals.responseData = { success: true, data: order };
+    next();
+  }
+
   async orderUpdate(req, res, next) {
     const { id, orderStatus, paymentStatus } = req.body;
     if (!id) throw new ApiError(400, 'Order ID is required');

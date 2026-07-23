@@ -167,6 +167,7 @@ router.post('/cart/update', auth, cartController.cartUpdate, responsedata);
 // ---------------------------------------------------------
 // Order Routes
 // ---------------------------------------------------------
+router.post('/order/track', orderController.orderTrack, responsedata); // guest lookup: order number + shipping phone, no login required
 router.post('/order/list', auth, orderController.orderList, responsedata);
 router.post('/order/create', auth, orderController.orderCreate, responsedata);
 router.post('/order/detail', auth, orderController.orderDetail, responsedata);

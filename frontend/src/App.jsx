@@ -19,6 +19,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Wishlist from './pages/Wishlist';
 import OrderSuccess from './pages/OrderSuccess';
+import TrackOrder from './pages/TrackOrder';
 import Account from './pages/Account';
 import { FitGuide, About, Policies, NotFound } from './pages/StaticPages';
 import { PrivacyPolicy, ReturnPolicy, ShippingPolicy, TermsOfService, Blog } from './pages/LegalPages';
@@ -41,6 +42,7 @@ function App() {
           <Route path="account" element={<Account />} />
           <Route path="checkout" element={<Checkout />} />
           <Route path="order-success/:orderNumber" element={<OrderSuccess />} />
+          <Route path="track-order" element={<TrackOrder />} />
           <Route path="cart" element={<Cart />} />
           <Route path="blog" element={<Blog />} />
           <Route path="privacy-policy" element={<PrivacyPolicy />} />

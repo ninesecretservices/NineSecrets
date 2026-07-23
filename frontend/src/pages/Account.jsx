@@ -18,7 +18,7 @@ const inputClass =
 
 const TIMELINE = ['processing', 'shipped', 'delivered'];
 
-function OrderTimeline({ status }) {
+export function OrderTimeline({ status }) {
   if (status === 'cancelled') {
     return (
       <p className="flex items-center gap-1.5 text-xs font-medium text-red-700">

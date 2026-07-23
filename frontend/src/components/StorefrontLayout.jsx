@@ -111,7 +111,7 @@ function SearchOverlay({ open, onClose }) {
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search bras, nightwear, lounge sets..."
+              placeholder="Search products..."
               className="w-full border border-beige bg-white py-3 pl-11 pr-4 text-sm text-ink outline-none transition-all placeholder:text-mauve focus:border-ink focus:shadow-[0_0_0_3px_rgba(32,24,32,0.06)]"
             />
           </div>
@@ -315,6 +315,12 @@ function Footer() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              to="/track-order"
+              className="text-left text-[13px] font-medium text-mauve-dark transition-all hover:text-ink hover:underline"
+            >
+              Track Order
+            </Link>
           </div>
         </div>
 

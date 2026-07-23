@@ -322,14 +322,24 @@ export default function Products() {
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this product from the store? Past orders keep their records.')) return;
+  // Custom modal instead of window.confirm — matches the rest of this admin's
+  // styled dialogs, and avoids the native confirm's blocking/jarring popup.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
     try {
-      await api.post('/product/delete', { id });
+      await api.post('/product/delete', { id: deleteTarget._id });
+      setDeleteTarget(null);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed');
+      setDeleteError(err.response?.data?.message || 'Delete failed');
     }
+    setDeleting(false);
   };
 
   const priceRange = (row) => {
@@ -413,7 +423,7 @@ export default function Products() {
                       <button onClick={() => handleOpenModal(row)} className="rounded-lg p-2 text-ink transition-colors hover:bg-beige/60" aria-label="Edit">
                         <Pencil size={16} strokeWidth={1.5} />
                       </button>
-                      <button onClick={() => handleDelete(row._id)} className="rounded-lg p-2 text-red-700 transition-colors hover:bg-blush/60" aria-label="Delete">
+                      <button onClick={() => { setDeleteError(''); setDeleteTarget(row); }} className="rounded-lg p-2 text-red-700 transition-colors hover:bg-blush/60" aria-label="Delete">
                         <Trash2 size={16} strokeWidth={1.5} />
                       </button>
                     </div>
@@ -618,7 +628,7 @@ export default function Products() {
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">In stock</label>
-                        <input type="number" min="0" value={v.stock} onChange={(e) => setVariant(idx, 'stock', e.target.value)} className={inputClass} required />
+                        <input type="number" min="0" value={v.stock} onChange={(e) => setVariant(idx, 'stock', e.target.value)} onFocus={(e) => e.target.select()} className={inputClass} required />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Full price ₹</label>
@@ -714,6 +724,36 @@ export default function Products() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-heading text-lg italic text-ink">Remove this product?</h3>
+            <p className="mb-5 text-sm text-mauve-dark">
+              "{deleteTarget.name}" will no longer show in the store. Past orders that include it keep their records.
+            </p>
+            {deleteError && <div className="mb-4 rounded-xl bg-blush px-4 py-3 text-sm text-ink">{deleteError}</div>}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="rounded-full bg-red-700 px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                {deleting ? 'Removing...' : 'Remove Product'}
+              </button>
+            </div>
           </div>
         </div>
       )}

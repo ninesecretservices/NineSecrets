@@ -175,7 +175,7 @@ export default function Collection() {
             {bestsellers ? 'Our Bestsellers' : urlCat || (urlSearch ? `Results for “${urlSearch}”` : 'Our Collection')}
           </h1>
           <p className="text-sm font-medium text-mauve-dark">
-            Everyday comfort, premium feel. {total} {total === 1 ? 'style' : 'styles'}.
+            Everyday comfort, premium feel. {!loading && `${total} ${total === 1 ? 'style' : 'styles'}.`}
           </p>
         </div>
       </div>

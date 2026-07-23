@@ -533,7 +533,10 @@ export default function Home() {
 
   const renderSection = (key) => {
     if (content.sectionsVisible[key] === false) return null;
-    const wrap = (node) => <div key={key} id={`section-${key}`}>{node}</div>;
+    // scroll-margin-top matches the sticky header's height (h-16 = 64px, +16px
+    // breathing room) so any scroll-to-section jump (admin preview, deep link)
+    // doesn't land the heading half-hidden behind the sticky nav bar.
+    const wrap = (node) => <div key={key} id={`section-${key}`} className="scroll-mt-20">{node}</div>;
     switch (key) {
       case 'usp':
         return wrap(<UspStrip items={content.usp} />);

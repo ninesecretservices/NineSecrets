@@ -8,11 +8,18 @@ import { toCardProduct } from '../utils/designData';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
 import { getCommerceSettings } from '../utils/settings';
-import { SIZE_CHART } from './StaticPages';
+import { SIZE_CHART, NotFound } from './StaticPages';
+
+// The shared SIZE_CHART carries band measurements, which are meaningless
+// outside bra/innerwear styles — shown/worded only when the product's own
+// category actually is one, so a T-shirt or pyjama set doesn't get told to
+// "find your band and cup measurements".
+const BRA_CATEGORY_RE = /bra|lingerie|innerwear|panty|panties|brief/i;
 
 // Quick-reference size chart in a modal, so switching sizes doesn't mean
 // navigating away and losing the colour/size selection already made.
-function SizeGuideModal({ onClose }) {
+function SizeGuideModal({ onClose, categoryName }) {
+  const isBra = BRA_CATEGORY_RE.test(categoryName || '');
   return (
     <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-10 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-lg bg-cream p-6 md:p-8" onClick={(e) => e.stopPropagation()}>
@@ -27,8 +34,8 @@ function SizeGuideModal({ onClose }) {
             <thead>
               <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
                 <th className="p-3">Size</th>
-                <th className="p-3">Band (in)</th>
-                <th className="p-3">Bust (in)</th>
+                {isBra && <th className="p-3">Band (in)</th>}
+                <th className="p-3">{isBra ? 'Bust (in)' : 'Bust/Chest (in)'}</th>
                 <th className="p-3">Waist (in)</th>
               </tr>
             </thead>
@@ -36,7 +43,7 @@ function SizeGuideModal({ onClose }) {
               {SIZE_CHART.map(([s, band, bust, waist]) => (
                 <tr key={s} className="border-b border-beige/60">
                   <td className="p-3 font-semibold text-ink">{s}</td>
-                  <td className="p-3 text-mauve-dark">{band}</td>
+                  {isBra && <td className="p-3 text-mauve-dark">{band}</td>}
                   <td className="p-3 text-mauve-dark">{bust}</td>
                   <td className="p-3 text-mauve-dark">{waist}</td>
                 </tr>
@@ -45,7 +52,9 @@ function SizeGuideModal({ onClose }) {
           </table>
         </div>
         <p className="text-xs leading-relaxed text-mauve-dark">
-          Between sizes? For bras, take the smaller band and larger cup. Still unsure? We exchange free within 7 days.
+          {isBra
+            ? 'Between sizes? For bras, take the smaller band and larger cup. Still unsure? We exchange free within 7 days.'
+            : 'Between sizes? Size up for a relaxed, comfortable fit. Still unsure? We exchange free within 7 days.'}
         </p>
       </div>
     </div>
@@ -54,16 +63,19 @@ function SizeGuideModal({ onClose }) {
 
 // Built per-product from real data — no fabricated specifics (e.g. a model's
 // measurements) and shipping numbers always match the actual store settings.
-const buildAccordions = (product, commerce) => [
+const buildAccordions = (product, commerce) => {
+  const isBra = BRA_CATEGORY_RE.test(product.item?.name || '');
+  const sizesAvailable = [...new Set((product.variants || []).map((v) => v.size?.name).filter(Boolean))].join(', ') || 'see options above';
+  return [
   {
     title: 'Product Details',
     body: product.description?.trim() || 'See the photos above for a closer look at this style. Full material details coming soon.',
   },
   {
     title: 'Size & Fit',
-    body: `This style runs true to size. Use the Size Guide above to find your band and cup measurements — sizes available: ${
-      [...new Set((product.variants || []).map((v) => v.size?.name).filter(Boolean))].join(', ') || 'see options above'
-    }.`,
+    body: isBra
+      ? `This style runs true to size. Use the Size Guide above to find your band and cup measurements — sizes available: ${sizesAvailable}.`
+      : `This style runs true to size. Use the Size Guide above for general measurements — sizes available: ${sizesAvailable}.`,
   },
   {
     title: 'Care Instructions',
@@ -73,7 +85,8 @@ const buildAccordions = (product, commerce) => [
     title: 'Shipping Policy',
     body: `Ships in 24 hours. Free shipping on orders above ₹${commerce.freeShippingThreshold}. Standard delivery: 3–5 business days.`,
   },
-];
+  ];
+};
 
 function ReviewForm({ productId, user, onSaved }) {
   const [rating, setRating] = useState(0);
@@ -264,7 +277,7 @@ export default function ProductDetail() {
     );
   }
   if (error || !product) {
-    return <div className="py-20 text-center text-mauve-dark">{error || 'Product not found'}</div>;
+    return <NotFound />;
   }
 
   const gallery = product.images?.length > 0
@@ -614,7 +627,7 @@ export default function ProductDetail() {
         </div>
         )}
       </div>
-      {sizeGuideOpen && <SizeGuideModal onClose={() => setSizeGuideOpen(false)} />}
+      {sizeGuideOpen && <SizeGuideModal onClose={() => setSizeGuideOpen(false)} categoryName={product.item?.name} />}
     </div>
   );
 }

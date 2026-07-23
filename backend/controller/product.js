@@ -8,10 +8,14 @@ class ProductController {
     const query = { isDeleted: false };
     if (Array.isArray(ids) && ids.length > 0) query._id = { $in: ids };
     if (featured) query.isFeatured = true;
+    // A secondary _id tiebreaker is required: ties on the primary key (e.g. two
+    // products at the same price) otherwise have no guaranteed stable order
+    // across separate skip/limit calls, which duplicates or skips items when
+    // paginating (Load More).
     const sortMap = {
-      newest: { createdAt: -1 },
-      'price-asc': { 'variants.sellingPrice': 1 },
-      'price-desc': { 'variants.sellingPrice': -1 },
+      newest: { createdAt: -1, _id: -1 },
+      'price-asc': { 'variants.sellingPrice': 1, _id: 1 },
+      'price-desc': { 'variants.sellingPrice': -1, _id: 1 },
     };
     const sortSpec = sortMap[sort] || sortMap.newest;
 

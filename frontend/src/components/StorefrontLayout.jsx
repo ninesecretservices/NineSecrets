@@ -393,7 +393,10 @@ function FloatingSocials() {
   if (!waUrl && !igUrl) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[90] flex flex-col gap-3">
+    // bottom-24 on mobile clears the fixed "Add to Cart" buy bar on product
+    // pages (which sits at the very bottom, z-40) — both are position:fixed,
+    // so without this offset they permanently overlap on every mobile PDP.
+    <div className="fixed bottom-24 right-6 z-[90] flex flex-col gap-3 md:bottom-6">
       {waUrl && (
         <a
           href={waUrl}

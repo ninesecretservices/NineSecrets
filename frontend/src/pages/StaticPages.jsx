@@ -145,7 +145,7 @@ const buildPolicies = (commerce) => [
   {
     id: 'track',
     title: 'Track Your Order',
-    body: `Sign in and open My Account → Your Orders to see the live status of every order — processing, shipped, delivered — along with your full order history and return requests. No account? Use Track Order in the footer with your order number and phone number.`,
+    body: `Sign in and open My Account → Your Orders to see the live status of every order — processing, shipped, delivered — along with your full order history and return requests.`,
   },
   {
     id: 'contact',

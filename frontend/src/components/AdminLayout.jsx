@@ -6,6 +6,7 @@ import {
   PanelLeftClose, PanelLeftOpen, FileText,
 } from 'lucide-react';
 import useStore from '../store/useStore';
+import Toaster from './Toaster';
 
 const NAV_SECTIONS = [
   {
@@ -90,9 +91,12 @@ export default function AdminLayout() {
       >
         <div className={`flex items-center border-b border-white/10 ${collapsed ? 'justify-center p-4' : 'justify-between p-6'}`}>
           {!collapsed && (
-            <div>
-              <h2 className="text-base font-bold uppercase tracking-[0.12em] text-cream">Nine Secrets</h2>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-cream/50">Admin Panel</p>
+            <div className="flex items-center gap-2.5">
+              <img src="/logo-icon.png" alt="" className="h-8 w-8 flex-shrink-0" />
+              <div>
+                <h2 className="text-base font-bold uppercase tracking-[0.12em] text-cream">Nine Secrets</h2>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-cream/50">Admin Panel</p>
+              </div>
             </div>
           )}
           <button
@@ -174,6 +178,7 @@ export default function AdminLayout() {
           </div>
         </div>
       </main>
+      <Toaster />
     </div>
   );
 }

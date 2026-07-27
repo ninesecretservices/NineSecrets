@@ -3,6 +3,9 @@ import { Pencil, Trash2, Plus, X, Upload, ImageOff, Sparkles } from 'lucide-reac
 import api, { resolveImageUrl } from '../../utils/api';
 import { uploadFile, deleteImage, slugifyFolder } from '../../utils/upload';
 import { inr } from '../../utils/format';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import useConfirm from '../../utils/useConfirm';
+import usePrompt from '../../utils/usePrompt';
 
 const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '' };
 
@@ -82,7 +85,10 @@ function QuickAdd({ label, endpoint, extraFields = [], departments = [], onCreat
           placeholder={`${label} name`}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), create())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); create(); }
+            if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+          }}
         />
         {extraFields.includes('hexCode') && (
           <input type="color" value={hex} onChange={(e) => setHex(e.target.value)} className="h-9 w-12 cursor-pointer rounded-lg border border-beige bg-white p-0.5" />
@@ -118,6 +124,10 @@ export default function Products() {
   const [editingId, setEditingId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
+  const { prompt, PromptDialog } = usePrompt();
+
+  useEscapeToClose(isModalOpen, () => setIsModalOpen(false));
 
   const [master, setMaster] = useState({ departments: [], items: [], designs: [], fabrics: [], colours: [], sizes: [], fits: [], descriptionTemplates: [] });
 
@@ -251,19 +261,29 @@ export default function Products() {
 
   // Shared by "Insert template" and "Generate with AI" — never silently
   // discards text the user already typed.
-  const applyDescriptionText = (newText) => {
-    setFormData((f) => {
-      const existing = (f.description || '').trim();
-      if (!existing) return { ...f, description: newText };
-      const replace = window.confirm('Replace the current description? Choose Cancel to append instead.');
-      return { ...f, description: replace ? newText : `${existing}\n\n${newText}` };
+  const applyDescriptionText = async (newText) => {
+    const existing = (formData.description || '').trim();
+    if (!existing) {
+      setFormData((f) => ({ ...f, description: newText }));
+      return;
+    }
+    const replace = await confirm('Replace the current description with the new text?', {
+      confirmLabel: 'Replace',
+      cancelLabel: 'Append Instead',
     });
+    setFormData((f) => ({
+      ...f,
+      description: replace ? newText : `${(f.description || '').trim()}\n\n${newText}`,
+    }));
   };
 
   const handleAiDescription = async () => {
     let imageUrl = formData.thumbnail;
     if (!imageUrl) {
-      imageUrl = window.prompt('No photo uploaded yet — paste an image URL to generate a description from:');
+      imageUrl = await prompt('No photo uploaded yet — paste an image URL to generate a description from:', {
+        placeholder: 'https://...',
+        confirmLabel: 'Use This Image',
+      });
       if (!imageUrl) return;
     }
     setAiGenerating(true);
@@ -327,6 +347,8 @@ export default function Products() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  useEscapeToClose(!!deleteTarget, () => setDeleteTarget(null));
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -455,6 +477,7 @@ export default function Products() {
                   <label className={labelClass}>Product Name</label>
                   <input
                     type="text"
+                    autoFocus
                     required
                     placeholder="e.g. Isla Padded Everyday Bra"
                     value={formData.name || ''}
@@ -739,6 +762,7 @@ export default function Products() {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
+                autoFocus
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
                 className="rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
@@ -757,6 +781,9 @@ export default function Products() {
           </div>
         </div>
       )}
+
+      {ConfirmDialog}
+      {PromptDialog}
     </div>
   );
 }

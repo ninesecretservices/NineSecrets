@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Eye, X } from 'lucide-react';
-import api from '../../utils/api';
+import { Eye, X, ImageOff } from 'lucide-react';
+import api, { resolveImageUrl } from '../../utils/api';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import useStore from '../../store/useStore';
 
 const ORDER_STATUSES = ['processing', 'shipped', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['pending', 'completed', 'failed', 'refunded'];
@@ -36,6 +38,9 @@ export default function Orders() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const [detail, setDetail] = useState(null);
+  const toast = useStore((s) => s.toast);
+
+  useEscapeToClose(!!detail, () => setDetail(null));
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -59,7 +64,7 @@ export default function Orders() {
       setDetail(res.data.data);
       fetchOrders();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update return request');
+      toast(err.response?.data?.message || 'Failed to update return request', 'error');
     }
   };
 
@@ -75,7 +80,7 @@ export default function Orders() {
       });
     } catch (err) {
       setOrders(prev);
-      alert(err.response?.data?.message || 'Failed to update order');
+      toast(err.response?.data?.message || 'Failed to update order', 'error');
     }
   };
 
@@ -109,8 +114,8 @@ export default function Orders() {
           <thead>
             <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
               <th className="py-2.5 pr-3">Order #</th>
+              <th className="py-2.5 pr-3">Item</th>
               <th className="py-2.5 pr-3">Customer</th>
-              <th className="py-2.5 pr-3">Items</th>
               <th className="py-2.5 pr-3">Total</th>
               <th className="py-2.5 pr-3">Payment</th>
               <th className="py-2.5 pr-3">Status</th>
@@ -134,11 +139,31 @@ export default function Orders() {
                       </span>
                     )}
                   </td>
+                  <td className="py-3 pr-3">
+                    <div className="flex items-center gap-2">
+                      {o.items?.[0]?.product?.thumbnail ? (
+                        <img
+                          src={resolveImageUrl(o.items[0].product.thumbnail)}
+                          alt=""
+                          className="h-11 w-9 flex-shrink-0 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-11 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-cream">
+                          <ImageOff size={14} className="text-mauve" />
+                        </div>
+                      )}
+                      <div className="max-w-[140px]">
+                        <p className="truncate text-[13px] text-ink">{o.items?.[0]?.name || '—'}</p>
+                        {o.items?.length > 1 && (
+                          <p className="text-[11px] text-mauve">+{o.items.length - 1} more</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                   <td className="py-3 pr-3 text-mauve-dark">
                     {o.user?.name || '—'}
                     <span className="block text-[11px] text-mauve">{o.user?.email}</span>
                   </td>
-                  <td className="py-3 pr-3 text-mauve-dark">{o.items?.length || 0}</td>
                   <td className="py-3 pr-3 font-semibold text-ink">₹{o.total}</td>
                   <td className="py-3 pr-3">
                     <StatusSelect

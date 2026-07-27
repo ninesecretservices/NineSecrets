@@ -6,6 +6,8 @@ import {
 import api, { resolveImageUrl } from '../../utils/api';
 import { uploadFile, uploadMedia, deleteImage } from '../../utils/upload';
 import { HOME_DEFAULTS, SECTION_LABELS, normalizeHomepage } from '../../utils/homeContent';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import useConfirm from '../../utils/useConfirm';
 
 const inputClass =
   'w-full rounded-xl border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
@@ -248,6 +250,9 @@ export default function Homepage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
+
+  useEscapeToClose(showHistory, () => setShowHistory(false));
   const [msg, setMsg] = useState(null);
   const [tab, setTab] = useState(() => {
     const h = window.location.hash.replace('#', '');
@@ -346,12 +351,12 @@ export default function Homepage() {
   };
 
   const saveDraft = () => act(() => api.post('/setting/save-draft', { key: 'homepage', value: content }), 'Draft saved — the live site is unchanged.');
-  const publish = () => {
-    if (!window.confirm('Publish these changes? Shoppers will see them immediately.')) return;
+  const publish = async () => {
+    if (!(await confirm('Publish these changes? Shoppers will see them immediately.', { confirmLabel: 'Publish' }))) return;
     act(() => api.post('/setting/publish', { key: 'homepage', value: content }), 'Published! The storefront is updated.');
   };
-  const revert = (i) => {
-    if (!window.confirm('Restore this version? It goes live immediately (the current version is kept in history).')) return;
+  const revert = async (i) => {
+    if (!(await confirm('Restore this version? It goes live immediately (the current version is kept in history).', { confirmLabel: 'Restore' }))) return;
     setShowHistory(false);
     act(() => api.post('/setting/revert', { key: 'homepage', versionIndex: i }), 'Version restored — it is now live.');
   };
@@ -958,6 +963,8 @@ export default function Homepage() {
         </div>
       )}
       </div>
+
+      {ConfirmDialog}
     </div>
   );
 }

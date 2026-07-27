@@ -150,9 +150,12 @@ function Navbar() {
         className={`sticky top-0 z-50 border-b border-beige bg-surface transition-shadow duration-300 ${scrolled ? 'shadow-[0_2px_20px_rgba(32,24,32,0.04)]' : ''}`}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:px-8">
-          <Link to="/" className="flex flex-col items-start">
-            <span className="text-[17px] font-bold uppercase leading-none tracking-[0.12em] text-ink">Nine Secrets</span>
-            <span className="text-[9px] uppercase tracking-[0.14em] text-mauve">we love your style</span>
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo-icon.png" alt="" className="h-9 w-9" />
+            <span className="flex flex-col items-start">
+              <span className="text-[17px] font-bold uppercase leading-none tracking-[0.12em] text-ink">Nine Secrets</span>
+              <span className="text-[9px] uppercase tracking-[0.14em] text-mauve">we love your style</span>
+            </span>
           </Link>
 
           <div className="hidden items-center gap-7 md:flex">
@@ -315,12 +318,6 @@ function Footer() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              to="/track-order"
-              className="text-left text-[13px] font-medium text-mauve-dark transition-all hover:text-ink hover:underline"
-            >
-              Track Order
-            </Link>
           </div>
         </div>
 

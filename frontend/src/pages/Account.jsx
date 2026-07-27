@@ -12,13 +12,14 @@ import useStore from '../store/useStore';
 import api from '../utils/api';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
+import useConfirm from '../utils/useConfirm';
 
 const inputClass =
   'w-full border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
 
 const TIMELINE = ['processing', 'shipped', 'delivered'];
 
-export function OrderTimeline({ status }) {
+function OrderTimeline({ status }) {
   if (status === 'cancelled') {
     return (
       <p className="flex items-center gap-1.5 text-xs font-medium text-red-700">
@@ -287,6 +288,7 @@ export default function Account() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [returnFor, setReturnFor] = useState(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -316,7 +318,11 @@ export default function Account() {
 
   const cancelOrder = async (o) => {
     if (
-      !window.confirm(`Cancel order ${o.orderNumber}? Items will be restocked.`)
+      !(await confirm(`Cancel order ${o.orderNumber}? Items will be restocked.`, {
+        confirmLabel: 'Cancel Order',
+        cancelLabel: 'Keep Order',
+        danger: true,
+      }))
     )
       return;
     try {
@@ -434,6 +440,8 @@ export default function Account() {
           }}
         />
       )}
+
+      {ConfirmDialog}
     </div>
   );
 }

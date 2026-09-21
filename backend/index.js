@@ -9,6 +9,7 @@ import router from './router.js';
 import { logError } from './methods.js';
 import { validateEnv } from './utils/validateEnv.js';
 import { startAbandonedCartJob } from './jobs/abandonedCart.js';
+import { startRenderKeepAliveJob } from './jobs/renderKeepAlive.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,10 @@ connectDB();
 // Abandoned-cart reminder emails (see jobs/abandonedCart.js) — Mongoose queues
 // queries until the connection above is ready, so no need to wait for it here.
 startAbandonedCartJob();
+
+// Keeps a Render free-tier instance from spinning down while idle — see
+// jobs/renderKeepAlive.js. No-ops entirely unless RENDER_AUTO=true.
+startRenderKeepAliveJob();
 
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // allow images to be served cross-origin

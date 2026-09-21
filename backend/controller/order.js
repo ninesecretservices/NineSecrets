@@ -7,7 +7,7 @@ import Setting from '../schema/Setting.js';
 import User from '../schema/User.js';
 import { sendEmail, orderConfirmationEmail } from '../utils/email.js';
 import { generateInvoicePdf } from '../utils/invoice.js';
-import { razorpayConfigured, createRazorpayOrder, verifyRazorpaySignature, refundRazorpayPayment } from '../utils/razorpay.js';
+import { razorpayConfigured, razorpayKeyId, createRazorpayOrder, verifyRazorpaySignature, refundRazorpayPayment } from '../utils/razorpay.js';
 import { logAudit } from '../utils/auditLog.js';
 
 // Store-level commerce config (Admin → Store Settings), with safe defaults.
@@ -227,7 +227,7 @@ class OrderController {
     const razorpayOrder = await createRazorpayOrder(total, `rcpt_${req.user.id}_${Date.now()}`);
     res.locals.responseData = {
       success: true,
-      data: { razorpayOrderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, keyId: process.env.RAZORPAY_KEY_ID },
+      data: { razorpayOrderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, keyId: razorpayKeyId },
     };
     next();
   }

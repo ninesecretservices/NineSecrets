@@ -68,7 +68,7 @@ export default function CartDrawer() {
           ) : (
             <div className="space-y-5">
               {items.map((item, idx) => (
-                <div key={item.variant?.sku || idx} className="flex gap-4 border-b border-beige/70 pb-5">
+                <div key={`${item.product?._id || item.product}-${item.variant?.sku || idx}`} className="flex gap-4 border-b border-beige/70 pb-5">
                   <div className="h-24 w-[76px] flex-shrink-0 overflow-hidden bg-blush">
                     {item.product?.thumbnail && (
                       <img src={resolveImageUrl(item.product.thumbnail)} alt={item.product?.name || ''} className="h-full w-full object-cover" />
@@ -83,11 +83,11 @@ export default function CartDrawer() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5 border border-beige px-3 py-1">
-                        <button onClick={() => updateCartItem(item.variant.sku, item.quantity - 1)} className="flex text-ink" aria-label="Decrease quantity">
+                        <button onClick={() => updateCartItem(item, item.quantity - 1)} className="flex text-ink" aria-label="Decrease quantity">
                           <Minus size={12} />
                         </button>
                         <span className="min-w-[16px] text-center text-xs font-semibold text-ink">{item.quantity}</span>
-                        <button onClick={() => updateCartItem(item.variant.sku, item.quantity + 1)} className="flex text-ink" aria-label="Increase quantity">
+                        <button onClick={() => updateCartItem(item, item.quantity + 1)} className="flex text-ink" aria-label="Increase quantity">
                           <Plus size={12} />
                         </button>
                       </div>
@@ -95,7 +95,7 @@ export default function CartDrawer() {
                     </div>
                   </div>
                   <button
-                    onClick={() => updateCartItem(item.variant.sku, 0)}
+                    onClick={() => updateCartItem(item, 0)}
                     className="self-start text-mauve transition-colors hover:text-red-700"
                     aria-label="Remove item"
                   >

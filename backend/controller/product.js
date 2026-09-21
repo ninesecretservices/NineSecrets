@@ -10,6 +10,28 @@ import ApiError from '../utils/ApiError.js';
 import slugify from 'slugify';
 import { logAudit } from '../utils/auditLog.js';
 
+// Cart lines, stock imports and invoices all identify an option by SKU, so two
+// products sharing one makes them indistinguishable. Rejects duplicates inside
+// the submitted variants and clashes with any other live product.
+async function assertUniqueSkus(variants, ownProductId) {
+  if (!Array.isArray(variants)) return;
+  const skus = variants.map((v) => String(v.sku || '').trim()).filter(Boolean);
+  const seen = new Set();
+  for (const sku of skus) {
+    if (seen.has(sku)) throw new ApiError(400, `SKU "${sku}" is used more than once on this product — every option needs its own SKU`);
+    seen.add(sku);
+  }
+  if (skus.length === 0) return;
+  const clash = await Product.findOne(
+    { isDeleted: false, 'variants.sku': { $in: skus }, ...(ownProductId && { _id: { $ne: ownProductId } }) },
+    'name variants.sku'
+  ).lean();
+  if (clash) {
+    const dup = clash.variants.find((v) => skus.includes(v.sku))?.sku;
+    throw new ApiError(400, `SKU "${dup}" is already used by "${clash.name}" — SKUs must be unique across products`);
+  }
+}
+
 class ProductController {
   async productList(req, res, next) {
     const { page = 1, limit = 10, search = '', department, item, fit, sizes, colours, minPrice, maxPrice, sort = 'newest', ids, featured } = req.body;
@@ -76,6 +98,7 @@ class ProductController {
       data.slug = slugify(data.name, { lower: true, strict: true }) + '-' + Date.now();
     }
     
+    await assertUniqueSkus(data.variants);
     data.createdBy = req.user.id;
     const newProduct = await Product.create(data);
     logAudit({ actor: req.user, action: 'product.create', entityType: 'Product', entityId: newProduct._id, summary: `Created product "${newProduct.name}"` });
@@ -92,6 +115,7 @@ class ProductController {
       data.slug = slugify(data.name, { lower: true, strict: true }) + '-' + Date.now();
     }
 
+    if (data.variants) await assertUniqueSkus(data.variants, id);
     data.updatedBy = req.user.id;
     const before = await Product.findById(id, 'name variants status');
     const updatedProduct = await Product.findByIdAndUpdate(id, data, { new: true });
@@ -138,7 +162,12 @@ class ProductController {
       name: `${original.name} (Copy)`,
       slug: slugify(`${original.name}-copy`, { lower: true, strict: true }) + '-' + Date.now(),
       status: 'draft',
-      variants: (original.variants || []).map(({ _id, ...v }) => ({ ...v, stock: 0 })),
+      // SKUs must stay unique across products, so the copy gets a suffixed SKU.
+      variants: (original.variants || []).map(({ _id, ...v }, i) => ({
+        ...v,
+        sku: `${v.sku}-C${Date.now().toString(36).slice(-3).toUpperCase()}${i}`,
+        stock: 0,
+      })),
       createdBy: req.user.id,
       updatedBy: undefined,
     });
@@ -311,6 +340,13 @@ class ProductController {
     const sizeByName = byName(sizes);
     const fitByName = byName(fits);
     const productByName = new Map(existingProducts.map((p) => [p.name.trim().toLowerCase(), p]));
+    // sku -> owning product key (existing product name, lowercased). Grows as
+    // new products in this same file claim SKUs, so two rows in one upload
+    // can't collide either.
+    const skuOwner = new Map();
+    for (const p of existingProducts) {
+      for (const v of p.variants || []) skuOwner.set(v.sku, p.name.trim().toLowerCase());
+    }
 
     // Group rows by product name, preserving first-seen casing for display.
     const groups = new Map();
@@ -344,6 +380,12 @@ class ProductController {
       const variants = [];
       for (const row of groupRows) {
         if (!row.sku) { rowErrors.push({ sku: '(blank)', reason: 'SKU is required' }); continue; }
+        const skuKey = String(row.sku).trim();
+        const owner = skuOwner.get(skuKey);
+        if (owner && owner !== productName.toLowerCase()) {
+          rowErrors.push({ sku: row.sku, reason: `SKU already used by another product ("${owner}") — SKUs must be unique` });
+          continue;
+        }
         const colour = colourByName.get(String(row.colour || '').trim().toLowerCase());
         const size = sizeByName.get(String(row.size || '').trim().toLowerCase());
         const fit = fitByName.get(String(row.fit || '').trim().toLowerCase());
@@ -354,8 +396,9 @@ class ProductController {
         const sellingPrice = Number(row.sellingPrice);
         const stock = Number(row.stock);
         if (!Number.isFinite(mrp) || !Number.isFinite(sellingPrice)) { rowErrors.push({ sku: row.sku, reason: 'MRP/Selling Price must be numbers' }); continue; }
+        skuOwner.set(skuKey, productName.toLowerCase());
         variants.push({
-          colour: colour._id, size: size._id, fit: fit._id, sku: String(row.sku).trim(),
+          colour: colour._id, size: size._id, fit: fit._id, sku: skuKey,
           barcode: row.barcode ? String(row.barcode).trim() : undefined,
           mrp, sellingPrice, stock: Number.isFinite(stock) ? Math.max(0, Math.floor(stock)) : 0,
         });

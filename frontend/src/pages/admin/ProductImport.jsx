@@ -34,8 +34,8 @@ const parseCsv = (text) =>
     .map((line) => line.split(',').map((c) => c.replace(/^"|"$/g, '').trim()));
 
 const SAMPLE_CSV = `Product Name,Department,Category,Design,Fabric,Description,Colour,Size,Fit,SKU,Barcode,MRP,Selling Price,Stock,Status,Featured,Tax%
-Isla Padded Everyday Bra,Women,Bra,,Cotton,Breathable cotton bra,Blush Pink,S,Regular,ISLA-PNK-S,,1099,799,10,active,no,0
-Isla Padded Everyday Bra,Women,Bra,,Cotton,Breathable cotton bra,Blush Pink,M,Regular,ISLA-PNK-M,,1099,799,25,active,no,0
+Navy Blue T-shirt Set,Women,Everyday Night Suit,,,Navy blue crew-neck T-shirt with matching pyjama bottoms,Navy Blue,S,Skin,NS-SAMPLE-NVY-S,,699,499,10,active,no,0
+Navy Blue T-shirt Set,Women,Everyday Night Suit,,,Navy blue crew-neck T-shirt with matching pyjama bottoms,Navy Blue,M,Skin,NS-SAMPLE-NVY-M,,699,499,25,active,no,0
 `;
 
 export default function ProductImport() {

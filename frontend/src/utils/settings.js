@@ -36,6 +36,11 @@ export const getCommerceSettings = () =>
     contactPhone: '',
     contactEmail: '',
     contactAddress: '',
+    legalName: '',
+    gstin: '',
+    jurisdictionCity: '',
+    grievanceName: '',
+    grievanceEmail: '',
     facebookUrl: '',
     ...c,
   }));

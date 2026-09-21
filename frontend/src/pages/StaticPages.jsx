@@ -24,14 +24,13 @@ function PageShell({ title, subtitle, children }) {
   );
 }
 
+// Only the sizes we actually stock. Columns: size, band (bra-specific, unused
+// for nightwear), bust/chest, waist — all in inches.
 export const SIZE_CHART = [
-  ['XS', '28-30', '32-34', '24-26'],
   ['S', '30-32', '34-36', '26-28'],
   ['M', '32-34', '36-38', '28-30'],
   ['L', '34-36', '38-40', '30-33'],
   ['XL', '36-38', '40-42', '33-36'],
-  ['2XL', '38-40', '42-44', '36-39'],
-  ['3XL', '40-42', '44-46', '39-42'],
 ];
 
 export function FitGuide() {
@@ -46,16 +45,14 @@ export function FitGuide() {
           <thead>
             <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
               <th className="p-4">Size</th>
-              <th className="p-4">Band (in)</th>
-              <th className="p-4">Bust (in)</th>
+              <th className="p-4">Bust / Chest (in)</th>
               <th className="p-4">Waist (in)</th>
             </tr>
           </thead>
           <tbody>
-            {SIZE_CHART.map(([s, band, bust, waist]) => (
+            {SIZE_CHART.map(([s, , bust, waist]) => (
               <tr key={s} className="border-b border-beige/60">
                 <td className="p-4 font-semibold text-ink">{s}</td>
-                <td className="p-4 text-mauve-dark">{band}</td>
                 <td className="p-4 text-mauve-dark">{bust}</td>
                 <td className="p-4 text-mauve-dark">{waist}</td>
               </tr>
@@ -66,20 +63,21 @@ export function FitGuide() {
       <div className="space-y-5 text-sm leading-relaxed text-mauve-dark">
         <div>
           <h2 className="mb-1 font-heading text-lg italic text-ink">
-            How to measure your band
+            How to measure your bust / chest
           </h2>
           <p>
-            Wrap a measuring tape directly under your bust, keeping it level and
-            snug. Round to the nearest whole number.
+            Wrap a measuring tape around the fullest part of your bust, keeping
+            it level. It should rest lightly, not compress. Round to the
+            nearest whole number.
           </p>
         </div>
         <div>
           <h2 className="mb-1 font-heading text-lg italic text-ink">
-            How to measure your bust
+            How to measure your waist
           </h2>
           <p>
-            Measure around the fullest part of your bust while wearing a
-            non-padded bra. The tape should rest lightly, not compress.
+            Measure around the narrowest part of your waist, usually just above
+            the belly button, keeping the tape level and snug but not tight.
           </p>
         </div>
         <div>
@@ -87,12 +85,61 @@ export function FitGuide() {
             Between sizes?
           </h2>
           <p>
-            For bras, take the smaller band and larger cup. For nightwear and
-            lounge sets, size up for a relaxed fit. Still unsure? We exchange
-            free within 7 days — no stress.
+            Size up for a relaxed, roomy fit. Still unsure? We exchange free
+            within 7 days — no stress.
           </p>
         </div>
       </div>
+    </PageShell>
+  );
+}
+
+export function Contact() {
+  useTitle('Contact Us');
+  const [c, setC] = useState(null);
+  useEffect(() => { getCommerceSettings().then(setC); }, []);
+
+  const rows = c && [
+    c.legalName && ['Business name', c.legalName],
+    c.contactAddress && ['Address', c.contactAddress],
+    c.contactEmail && ['Email', <a key="e" href={`mailto:${c.contactEmail}`} className="text-ink underline underline-offset-2">{c.contactEmail}</a>],
+    c.contactPhone && ['Phone', <a key="p" href={`tel:${c.contactPhone.replace(/[^0-9+]/g, '')}`} className="text-ink underline underline-offset-2">{c.contactPhone}</a>],
+    c.gstin && ['GSTIN', c.gstin],
+    (c.grievanceName || c.grievanceEmail) && [
+      'Grievance officer',
+      <span key="g">
+        {c.grievanceName}
+        {c.grievanceName && c.grievanceEmail && ' · '}
+        {c.grievanceEmail && <a href={`mailto:${c.grievanceEmail}`} className="text-ink underline underline-offset-2">{c.grievanceEmail}</a>}
+      </span>,
+    ],
+  ].filter(Boolean);
+
+  return (
+    <PageShell title="Contact Us" subtitle="We're happy to help with orders, sizing, exchanges and anything else.">
+      {!rows ? null : (
+        <div className="space-y-8">
+          <dl className="grid gap-x-8 gap-y-5 text-[15px] sm:grid-cols-[180px_1fr]">
+            {rows.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-mauve">{label}</dt>
+                <dd className="text-mauve-dark">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {c.contactEmail && (
+            <a
+              href={`mailto:${c.contactEmail}`}
+              className="inline-block bg-ink px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream"
+            >
+              Email us
+            </a>
+          )}
+          <p className="text-sm text-mauve-dark">
+            For exchanges and returns see our <Link to="/return-policy" className="text-ink underline underline-offset-2">Return &amp; Cancellation policy</Link>; for delivery timelines see the <Link to="/shipping-policy" className="text-ink underline underline-offset-2">Shipping policy</Link>.
+          </p>
+        </div>
+      )}
     </PageShell>
   );
 }
@@ -106,7 +153,7 @@ export function About() {
           Looks premium. Priced like it isn't. Lasts like you'd hope.
         </p>
         <p>
-          Nine Secrets began with a simple frustration: innerwear that looked
+          Nine Secrets began with a simple frustration: nightwear that looked
           beautiful either cost a fortune or fell apart after ten washes. We
           decided to make our own — designed in-house, crafted with breathable,
           long-lasting fabrics, and sold directly to you with no middlemen
@@ -114,8 +161,8 @@ export function About() {
         </p>
         <p>
           Every piece is built to outlast 50 washes and still feel like new.
-          Sizes run from XS to 3XL because comfort shouldn't have a size limit,
-          and every order ships with our 7-day easy exchange promise.
+          Sizes run from S to XL, and every order ships with our 7-day easy
+          exchange promise.
         </p>
         <p>Made with love in India. 🇮🇳</p>
       </div>
@@ -135,7 +182,7 @@ const buildPolicies = (commerce) => [
   {
     id: 'exchange',
     title: 'Exchange & Return Policy',
-    body: `We accept return and exchange requests within 7 days of delivery. Items must be unworn, unwashed, and in original packaging with tags attached. For hygiene reasons, briefs and panties can only be exchanged if unopened. To start a request, go to My Account → Your Orders → Return / Exchange, or contact us. Approved returns are refunded to the original payment method within 5–7 business days after the item reaches us.`,
+    body: `We accept return and exchange requests within 7 days of delivery. Items must be unworn, unwashed, and in original packaging with tags attached. To start a request, go to My Account → Your Orders → Return / Exchange, or contact us. Approved returns are refunded to the original payment method within 5–7 business days after the item reaches us.`,
   },
   {
     id: 'shipping',

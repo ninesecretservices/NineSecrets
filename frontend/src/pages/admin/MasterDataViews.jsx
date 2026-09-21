@@ -8,7 +8,7 @@ export function Departments() {
   return (
     <MasterData
       title="Departments"
-      description={'The top-level sections of your shop — for example "Women". Every category (like Bras) belongs to a department.'}
+      description={'The top-level sections of your shop — for example "Women". Every category (like Night Suits) belongs to a department.'}
       emptyHint={'Start here! Add your first department — for most stores that\'s simply "Women".'}
       endpoint="department"
       columns={sharedColumns}
@@ -38,7 +38,7 @@ export function Items() {
   ];
 
   const formSchema = [
-    { label: 'Name', key: 'name', required: true, placeholder: 'e.g. Bra, Nightdress, Lounge Set' },
+    { label: 'Name', key: 'name', required: true, placeholder: 'e.g. Night Suit, Pyjama Set, T-shirt Set' },
     {
       label: 'Department',
       key: 'department',
@@ -51,8 +51,8 @@ export function Items() {
   return (
     <MasterData
       title="Categories"
-      description={'The types of products you sell — Bras, Nightwear, Lounge Sets. Each belongs to a department. Customers browse by these.'}
-      emptyHint="Add your product types here, e.g. Bra, Nightdress, Lounge Set. (Create a Department first if the dropdown is empty.)"
+      description={'The types of products you sell — Night Suits, Pyjama Sets, T-shirt Sets. Each belongs to a department. Customers browse by these.'}
+      emptyHint="Add your product types here, e.g. Night Suit, Pyjama Set, T-shirt Set. (Create a Department first if the dropdown is empty.)"
       endpoint="item"
       columns={columns}
       formSchema={formSchema}

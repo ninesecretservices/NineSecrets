@@ -54,13 +54,14 @@ function AnnouncementBar() {
   );
 }
 
-// Primary nav mirrors the reference flow: Home / Our Collection ▾ / Bestsellers / About / Blog
+// Primary nav: Home / Our Collection ▾ / Bestsellers / About. Bestsellers is
+// only shown while at least one product is flagged as one (see
+// useCatalogPresence) so the nav never leads to an empty page.
 const NAV_LINKS = [
   { label: 'Home', to: '/' },
   { label: 'Our Collection', to: '/collection', dropdown: true },
   { label: 'Bestsellers', to: '/bestsellers' },
   { label: 'About Us', to: '/about' },
-  { label: 'Blog', to: '/blog' },
 ];
 
 // Categories for the "Our Collection" submenu (public taxonomy).
@@ -74,6 +75,29 @@ function useCategories() {
     );
   }, []);
   return cats;
+}
+
+// Which categories have at least one visible product, and whether any product
+// is flagged a bestseller — so the nav never links to an empty page. If the
+// catalog is larger than the one page fetched here, categories aren't filtered
+// (better to show an empty one than hide a real one).
+function useCatalogPresence() {
+  const [presence, setPresence] = useState({ itemIds: null, hasBestsellers: false });
+  useEffect(() => {
+    import('../utils/api').then(({ default: api }) =>
+      api.post('/product/public-list', { page: 1, limit: 100 })
+        .then((res) => {
+          const { docs = [], total = 0 } = res.data.data;
+          const complete = total <= docs.length;
+          setPresence({
+            itemIds: complete ? new Set(docs.map((p) => String(p.item?._id || p.item))) : null,
+            hasBestsellers: !complete || docs.some((p) => p.isFeatured),
+          });
+        })
+        .catch(() => setPresence({ itemIds: null, hasBestsellers: true }))
+    );
+  }, []);
+  return presence;
 }
 
 // Groups categories under their department (itemList already returns each
@@ -196,8 +220,11 @@ function SearchOverlay({ open, onClose }) {
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileCatsOpen, setMobileCatsOpen] = useState(false);
-  const categories = useCategories();
+  const allCategories = useCategories();
+  const { itemIds, hasBestsellers } = useCatalogPresence();
+  const categories = itemIds ? allCategories.filter((c) => itemIds.has(String(c._id))) : allCategories;
   const categoryGroups = groupByDepartment(categories);
+  const navLinks = NAV_LINKS.filter((l) => l.to !== '/bestsellers' || hasBestsellers);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
@@ -237,7 +264,7 @@ function Navbar() {
           </Link>
 
           <div className="hidden items-center gap-7 md:flex">
-            {NAV_LINKS.map((l) =>
+            {navLinks.map((l) =>
               l.dropdown ? (
                 <div key={l.label} className="group relative">
                   <Link to={l.to} className="flex items-center gap-1 py-5 text-[13px] font-medium text-ink transition-opacity hover:opacity-60">
@@ -266,7 +293,9 @@ function Navbar() {
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-mauve">Shop By</p>
                       <Link to="/collection" className="text-[13px] font-semibold text-ink transition-opacity hover:opacity-60">All Products</Link>
                       <Link to="/collection?sort=newest" className="text-[13px] text-ink transition-opacity hover:opacity-60">New In</Link>
-                      <Link to="/bestsellers" className="text-[13px] text-ink transition-opacity hover:opacity-60">Bestsellers</Link>
+                      {hasBestsellers && (
+                        <Link to="/bestsellers" className="text-[13px] text-ink transition-opacity hover:opacity-60">Bestsellers</Link>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -331,7 +360,7 @@ function Navbar() {
           </button>
         </div>
         <div className="flex flex-col gap-6 overflow-y-auto px-8 pt-10">
-          {NAV_LINKS.map((l) =>
+          {navLinks.map((l) =>
             l.dropdown ? (
               <div key={l.label}>
                 <button
@@ -382,6 +411,11 @@ function Navbar() {
   );
 }
 
+const QUICK_LINKS_EXTRA = [
+  { label: 'About Us', to: '/about' },
+  { label: 'Contact Us', to: '/contact' },
+];
+
 const POLICY_LINKS = [
   { label: 'Privacy Policy', to: '/privacy-policy' },
   { label: 'Return & Cancellation', to: '/return-policy' },
@@ -390,7 +424,7 @@ const POLICY_LINKS = [
 ];
 
 function Footer() {
-  const [contact, setContact] = useState({ contactPhone: '', contactEmail: '', contactAddress: '', instagramUrl: '', facebookUrl: '' });
+  const [contact, setContact] = useState({ contactPhone: '', contactEmail: '', contactAddress: '', instagramUrl: '', facebookUrl: '', legalName: '' });
 
   useEffect(() => {
     import('../utils/settings.js').then(({ getCommerceSettings }) => getCommerceSettings().then(setContact));
@@ -404,7 +438,7 @@ function Footer() {
         <div>
           <p className="mb-4 font-heading text-xl italic text-ink">Quick Links</p>
           <div className="flex flex-col gap-3">
-            {POLICY_LINKS.map((link) => (
+            {[...QUICK_LINKS_EXTRA, ...POLICY_LINKS].map((link) => (
               <Link
                 key={link.label}
                 to={link.to}
@@ -454,8 +488,8 @@ function Footer() {
 
       <div className="border-t border-ink/10 bg-cream py-3.5">
         <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 text-center text-xs text-mauve">
-          <span>&copy; {new Date().getFullYear()} Nine Secrets. All rights reserved.</span>
-          {POLICY_LINKS.slice(0, 3).map((link, i) => (
+          <span>&copy; {new Date().getFullYear()} {contact.legalName || 'Nine Secrets'}. All rights reserved.</span>
+          {POLICY_LINKS.map((link) => (
             <span key={link.label} className="flex items-center gap-2">
               <span className="text-beige">|</span>
               <Link to={link.to} className="hover:text-ink hover:underline">{link.label}</Link>
@@ -466,6 +500,13 @@ function Footer() {
     </footer>
   );
 }
+
+// wa.me needs country code + number. A bare 10-digit Indian number (how it's
+// usually typed into settings) would give a dead link, so default it to +91.
+const whatsappDigits = (raw) => {
+  const d = String(raw || '').replace(/[^0-9]/g, '');
+  return d.length === 10 ? `91${d}` : d;
+};
 
 const SOCIAL_DEFAULTS = { whatsappNumber: '919876543210', instagramUrl: 'https://instagram.com/ninesecrets' };
 
@@ -484,7 +525,7 @@ function FloatingSocials() {
   }, []);
 
   const waUrl = links.whatsappNumber
-    ? `https://wa.me/${links.whatsappNumber.replace(/[^0-9]/g, '')}`
+    ? `https://wa.me/${whatsappDigits(links.whatsappNumber)}`
     : null;
   const igUrl = links.instagramUrl || null;
 

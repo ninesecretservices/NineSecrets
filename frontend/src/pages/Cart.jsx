@@ -43,7 +43,7 @@ export default function Cart() {
           {/* Items */}
           <div className="space-y-5">
             {items.map((item, idx) => (
-              <div key={item.variant?.sku || idx} className="flex gap-5 border border-beige bg-surface p-4">
+              <div key={`${item.product?._id || item.product}-${item.variant?.sku || idx}`} className="flex gap-5 border border-beige bg-surface p-4">
                 <div
                   className="h-32 w-[104px] flex-shrink-0 cursor-pointer overflow-hidden bg-blush"
                   onClick={() => item.product?.slug && navigate(`/product/${item.product.slug}`)}
@@ -61,11 +61,11 @@ export default function Cart() {
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3 border border-beige px-4 py-1.5">
-                      <button onClick={() => updateCartItem(item.variant.sku, item.quantity - 1)} className="flex text-ink" aria-label="Decrease quantity">
+                      <button onClick={() => updateCartItem(item, item.quantity - 1)} className="flex text-ink" aria-label="Decrease quantity">
                         <Minus size={13} />
                       </button>
                       <span className="min-w-[18px] text-center text-sm font-semibold text-ink">{item.quantity}</span>
-                      <button onClick={() => updateCartItem(item.variant.sku, item.quantity + 1)} className="flex text-ink" aria-label="Increase quantity">
+                      <button onClick={() => updateCartItem(item, item.quantity + 1)} className="flex text-ink" aria-label="Increase quantity">
                         <Plus size={13} />
                       </button>
                     </div>
@@ -73,7 +73,7 @@ export default function Cart() {
                   </div>
                 </div>
                 <button
-                  onClick={() => updateCartItem(item.variant.sku, 0)}
+                  onClick={() => updateCartItem(item, 0)}
                   className="self-start p-1 text-mauve transition-colors hover:text-red-700"
                   aria-label="Remove item"
                 >

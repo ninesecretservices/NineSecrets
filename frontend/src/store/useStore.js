@@ -13,6 +13,11 @@ const saveGuestCart = (cart) => localStorage.setItem('guestCart', JSON.stringify
 
 const cartTotal = (items) => items.reduce((s, i) => s + i.price * i.quantity, 0);
 
+// A cart line is identified by product + SKU, never SKU alone — two products
+// that happen to share a SKU must stay separate lines instead of one
+// silently overwriting the other.
+const lineKey = (product, variant) => `${String(product?._id || product)}::${variant?.sku}`;
+
 let toastId = 0;
 
 const useStore = create((set, get) => ({
@@ -49,7 +54,7 @@ const useStore = create((set, get) => ({
       if (guest.items.length > 0) {
         const merged = [...items];
         for (const gi of guest.items) {
-          const idx = merged.findIndex((i) => i.variant?.sku === gi.variant?.sku);
+          const idx = merged.findIndex((i) => lineKey(i.product, i.variant) === lineKey(gi.product, gi.variant));
           if (idx > -1) merged[idx].quantity += gi.quantity;
           else merged.push({ product: gi.product?._id || gi.product, variant: gi.variant, quantity: gi.quantity, price: gi.price });
         }
@@ -172,7 +177,7 @@ const useStore = create((set, get) => ({
     if (!user) {
       // Guest cart: keep a display-ready snapshot locally.
       const items = cart?.items ? [...cart.items] : [];
-      const idx = items.findIndex((i) => i.variant?.sku === variant.sku);
+      const idx = items.findIndex((i) => lineKey(i.product, i.variant) === lineKey(product, variant));
       if (idx > -1) {
         items[idx] = { ...items[idx], quantity: items[idx].quantity + quantity };
       } else {
@@ -192,7 +197,7 @@ const useStore = create((set, get) => ({
 
     try {
       const currentItems = cart?.items ? [...cart.items] : [];
-      const existingIdx = currentItems.findIndex((item) => item.variant.sku === variant.sku);
+      const existingIdx = currentItems.findIndex((item) => lineKey(item.product, item.variant) === lineKey(product, variant));
       if (existingIdx > -1) {
         currentItems[existingIdx].quantity += quantity;
       } else {
@@ -210,11 +215,13 @@ const useStore = create((set, get) => ({
     }
   },
 
-  // qty <= 0 removes the line.
-  updateCartItem: async (sku, qty) => {
+  // `line` is the cart line being changed (matched by product + SKU); qty <= 0
+  // removes it.
+  updateCartItem: async (line, qty) => {
     const { user, cart, toast } = get();
+    const key = lineKey(line.product, line.variant);
     const items = (cart?.items || [])
-      .map((i) => (i.variant?.sku === sku ? { ...i, quantity: qty } : i))
+      .map((i) => (lineKey(i.product, i.variant) === key ? { ...i, quantity: qty } : i))
       .filter((i) => i.quantity > 0);
 
     if (!user) {

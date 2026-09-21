@@ -22,12 +22,21 @@ const STATUS_OPTIONS = [
   { value: 'out-of-stock', label: 'Out of stock' },
 ];
 
-// Suggest a stock code like NS-ISLA-PNK-M so users never have to invent one.
+// Suggest a stock code like NS-ISLAPADD-PNK-M-K3 so users never have to invent
+// one. The name segment is longer than it used to be and ends in a short hash
+// of the full name: the old "first 4 letters" scheme gave "dark Green T-shirt"
+// and "Dark Pink" the same code, and SKUs must be unique across products.
+const nameHash = (s) => {
+  let h = 0;
+  for (const ch of (s || '').trim().toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h.toString(36).toUpperCase().slice(-2).padStart(2, '0');
+};
 const suggestSku = (productName, colourName, sizeName) =>
   ['NS',
-    (productName || '').replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase(),
+    (productName || '').replace(/[^a-z]/gi, '').slice(0, 8).toUpperCase(),
     (colourName || '').replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase(),
     (sizeName || '').replace(/\s/g, '').toUpperCase(),
+    productName ? nameHash(productName) : '',
   ].filter(Boolean).join('-');
 
 function SectionTitle({ n, title, hint }) {
@@ -601,7 +610,7 @@ export default function Products() {
                     type="text"
                     autoFocus
                     required
-                    placeholder="e.g. Isla Padded Everyday Bra"
+                    placeholder="e.g. Navy Blue T-shirt Set"
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className={inputClass}

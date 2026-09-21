@@ -233,6 +233,7 @@ function Navbar() {
   const wishlist = useStore((s) => s.wishlist);
   const cart = useStore((s) => s.cart);
   const fetchWishlist = useStore((s) => s.fetchWishlist);
+  const fetchCart = useStore((s) => s.fetchCart);
   const cartCount = (cart?.items || []).reduce((n, i) => n + i.quantity, 0);
 
   useEffect(() => {
@@ -245,8 +246,11 @@ function Navbar() {
   // — load it once per session so PDP heart-fill state and the Wishlist page
   // aren't stuck showing empty until something happens to trigger a fetch.
   useEffect(() => {
-    if (user) fetchWishlist();
-  }, [user, fetchWishlist]);
+    if (user) {
+      fetchWishlist();
+      fetchCart();
+    }
+  }, [user, fetchWishlist, fetchCart]);
 
   return (
     <>

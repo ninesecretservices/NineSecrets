@@ -3,10 +3,17 @@ import { Outlet, NavLink, Link, Navigate, useNavigate, useLocation } from 'react
 import {
   LayoutDashboard, Package, ShoppingCart, Users, LogOut, Store,
   Building2, Shirt, PenTool, Palette, Layers, Ruler, Scaling, Tag, Image, Settings, FileSpreadsheet,
-  PanelLeftClose, PanelLeftOpen, FileText,
+  PanelLeftClose, PanelLeftOpen, FileText, History, RotateCcw, UserRound, BarChart3, Upload,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import Toaster from './Toaster';
+
+// Staff roles that can reach the admin panel at all. 'fulfillment' and 'catalog'
+// are scoped-down staff roles (see backend/schema/User.js) — every nav link below
+// carries a `roles` allow-list; a link with no `roles` is visible to all four.
+export const ADMIN_ROLES = ['superadmin', 'admin', 'fulfillment', 'catalog'];
+const CATALOG_ROLES = ['superadmin', 'admin', 'catalog'];
+const FULFILLMENT_ROLES = ['superadmin', 'admin', 'fulfillment'];
 
 const NAV_SECTIONS = [
   {
@@ -16,35 +23,42 @@ const NAV_SECTIONS = [
   {
     title: 'Shop',
     links: [
-      { to: '/admin/products', label: 'Products', icon: Package },
-      { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-      { to: '/admin/coupons', label: 'Coupons', icon: Tag },
-      { to: '/admin/stock-import', label: 'Stock Import', icon: FileSpreadsheet },
+      { to: '/admin/products', label: 'Products', icon: Package, roles: CATALOG_ROLES },
+      { to: '/admin/orders', label: 'Orders', icon: ShoppingCart, roles: FULFILLMENT_ROLES },
+      { to: '/admin/returns', label: 'Returns & Exchanges', icon: RotateCcw, roles: FULFILLMENT_ROLES },
+      { to: '/admin/coupons', label: 'Coupons', icon: Tag, roles: ['superadmin', 'admin'] },
+      { to: '/admin/stock-import', label: 'Stock Import', icon: FileSpreadsheet, roles: CATALOG_ROLES },
+      { to: '/admin/product-import', label: 'Product Import', icon: Upload, roles: CATALOG_ROLES },
+      { to: '/admin/customers', label: 'Customers', icon: UserRound, roles: ['superadmin', 'admin'] },
+      { to: '/admin/reports', label: 'Reports', icon: BarChart3, roles: ['superadmin', 'admin'] },
     ],
   },
   {
     title: 'Website',
     links: [
-      { to: '/admin/homepage', label: 'Homepage', icon: Image, superadminOnly: true },
-      { to: '/admin/store-settings', label: 'Store Settings', icon: Settings, superadminOnly: true },
+      { to: '/admin/homepage', label: 'Homepage', icon: Image, roles: ['superadmin'] },
+      { to: '/admin/store-settings', label: 'Store Settings', icon: Settings, roles: ['superadmin'] },
     ],
   },
   {
     title: 'Product Options',
     links: [
-      { to: '/admin/departments', label: 'Departments', icon: Building2 },
-      { to: '/admin/items', label: 'Categories', icon: Shirt },
-      { to: '/admin/colours', label: 'Colours', icon: Palette },
-      { to: '/admin/sizes', label: 'Sizes', icon: Ruler },
-      { to: '/admin/fits', label: 'Fits', icon: Scaling },
-      { to: '/admin/fabrics', label: 'Fabrics', icon: Layers },
-      { to: '/admin/designs', label: 'Designs', icon: PenTool },
-      { to: '/admin/description-templates', label: 'Description Templates', icon: FileText },
+      { to: '/admin/departments', label: 'Departments', icon: Building2, roles: CATALOG_ROLES },
+      { to: '/admin/items', label: 'Categories', icon: Shirt, roles: CATALOG_ROLES },
+      { to: '/admin/colours', label: 'Colours', icon: Palette, roles: CATALOG_ROLES },
+      { to: '/admin/sizes', label: 'Sizes', icon: Ruler, roles: CATALOG_ROLES },
+      { to: '/admin/fits', label: 'Fits', icon: Scaling, roles: CATALOG_ROLES },
+      { to: '/admin/fabrics', label: 'Fabrics', icon: Layers, roles: CATALOG_ROLES },
+      { to: '/admin/designs', label: 'Designs', icon: PenTool, roles: CATALOG_ROLES },
+      { to: '/admin/description-templates', label: 'Description Templates', icon: FileText, roles: CATALOG_ROLES },
     ],
   },
   {
     title: 'Team',
-    links: [{ to: '/admin/users', label: 'Staff Accounts', icon: Users, superadminOnly: true }],
+    links: [
+      { to: '/admin/users', label: 'Staff Accounts', icon: Users, roles: ['superadmin'] },
+      { to: '/admin/audit-log', label: 'Activity Log', icon: History, roles: ['superadmin'] },
+    ],
   },
 ];
 
@@ -61,9 +75,16 @@ export default function AdminLayout() {
     ALL_LINKS.find((l) => l.to === location.pathname) ||
     ALL_LINKS.find((l) => l.to !== '/admin' && location.pathname.startsWith(l.to));
 
-  // Guard: must be logged in as admin/superadmin
+  // Guard: must be logged in as staff
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'admin' && user.role !== 'superadmin') return <Navigate to="/" replace />;
+  if (!ADMIN_ROLES.includes(user.role)) return <Navigate to="/" replace />;
+
+  // Guard: a scoped role (fulfillment/catalog) hitting a page outside its
+  // section by direct URL — not just a hidden nav link — bounces to the
+  // dashboard, which every staff role can see.
+  if (currentPage?.roles && !currentPage.roles.includes(user.role)) {
+    return <Navigate to="/admin" replace />;
+  }
 
   const toggleSidebar = () => {
     setCollapsed((c) => {
@@ -111,7 +132,10 @@ export default function AdminLayout() {
 
         {/* Sidebar scrolls on its own (scrollbar hidden — it's short) */}
         <nav className={`no-scrollbar flex-grow overflow-y-auto py-6 ${collapsed ? 'px-2.5' : 'px-4'}`}>
-          {NAV_SECTIONS.map((section, si) => (
+          {NAV_SECTIONS.map((section, si) => {
+            const visibleLinks = section.links.filter((l) => !l.roles || l.roles.includes(user.role));
+            if (visibleLinks.length === 0) return null;
+            return (
             <div key={si}>
               {section.title && !collapsed && (
                 <div className="px-4 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cream/40">
@@ -119,16 +143,15 @@ export default function AdminLayout() {
                 </div>
               )}
               {section.title && collapsed && <div className="my-3 h-px bg-white/10" />}
-              {section.links
-                .filter((l) => !l.superadminOnly || user.role === 'superadmin')
-                .map(({ to, label, icon: Icon, end }) => (
-                  <NavLink key={to} to={to} end={end} className={linkClass} title={collapsed ? label : undefined}>
-                    <Icon size={collapsed ? 18 : 16} strokeWidth={1.5} className="flex-shrink-0" />
-                    {!collapsed && label}
-                  </NavLink>
-                ))}
+              {visibleLinks.map(({ to, label, icon: Icon, end }) => (
+                <NavLink key={to} to={to} end={end} className={linkClass} title={collapsed ? label : undefined}>
+                  <Icon size={collapsed ? 18 : 16} strokeWidth={1.5} className="flex-shrink-0" />
+                  {!collapsed && label}
+                </NavLink>
+              ))}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className={`space-y-2 border-t border-white/10 ${collapsed ? 'p-2.5' : 'p-4'}`}>

@@ -53,6 +53,24 @@ export const orderConfirmationEmail = (order) => ({
     </div>`,
 });
 
+export const abandonedCartEmail = (cart) => {
+  const cartUrl = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/cart`;
+  return {
+    subject: 'You left something behind…',
+    html: `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+      <h2 style="font-style:italic">Still thinking it over?</h2>
+      <p>Your cart is waiting — here's what's in it:</p>
+      <table width="100%" style="border-collapse:collapse">
+        ${cart.items.map((i) => `<tr><td style="padding:6px 0">${i.product?.name || 'Item'} × ${i.quantity}</td><td align="right">₹${i.price * i.quantity}</td></tr>`).join('')}
+        <tr><td style="padding-top:10px;font-weight:bold;border-top:1px solid #E4D8C8">Total</td><td align="right" style="padding-top:10px;font-weight:bold;border-top:1px solid #E4D8C8">₹${cart.total}</td></tr>
+      </table>
+      <p><a href="${cartUrl}" style="background:#201820;color:#F3ECE3;padding:12px 24px;border-radius:50px;text-decoration:none;display:inline-block;margin-top:12px">Complete Your Order</a></p>
+      <p style="color:#8a7070;font-size:13px">Nine Secrets — we love your style</p>
+    </div>`,
+  };
+};
+
 export const passwordResetEmail = (resetUrl) => ({
   subject: 'Reset your Nine Secrets password',
   html: `

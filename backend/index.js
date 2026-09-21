@@ -8,6 +8,7 @@ import connectDB from './utils/db.js';
 import router from './router.js';
 import { logError } from './methods.js';
 import { validateEnv } from './utils/validateEnv.js';
+import { startAbandonedCartJob } from './jobs/abandonedCart.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,6 +18,10 @@ validateEnv(isProd);
 
 // Connect to MongoDB
 connectDB();
+
+// Abandoned-cart reminder emails (see jobs/abandonedCart.js) — Mongoose queues
+// queries until the connection above is ready, so no need to wait for it here.
+startAbandonedCartJob();
 
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // allow images to be served cross-origin
@@ -52,6 +57,11 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
   });
 });
+
+// SEO: sitemap.xml, always generated fresh from the live catalog (see comment
+// in controller/sitemap.js on why this isn't under /api).
+import { sitemapXml } from './controller/sitemap.js';
+app.get('/sitemap.xml', (req, res, next) => sitemapXml(req, res).catch(next));
 
 // Routes
 app.use('/api', router);

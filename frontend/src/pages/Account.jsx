@@ -7,12 +7,16 @@ import {
   MapPin,
   Trash2,
   XCircle,
+  Download,
+  X,
 } from 'lucide-react';
 import useStore from '../store/useStore';
-import api from '../utils/api';
+import api, { resolveImageUrl } from '../utils/api';
 import { inr } from '../utils/format';
 import useTitle from '../utils/useTitle';
 import useConfirm from '../utils/useConfirm';
+import { downloadInvoice } from '../utils/invoice';
+import { uploadFile } from '../utils/upload';
 
 const inputClass =
   'w-full border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
@@ -64,13 +68,63 @@ function ReturnModal({ order, onClose, onDone }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [product, setProduct] = useState(null);
+  const [desiredSku, setDesiredSku] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  const canExchange = order.items.length === 1;
+  const originalItem = order.items[0];
+
+  useEffect(() => {
+    if (type !== 'exchange' || !canExchange || product) return;
+    api.post('/product/detail', { id: originalItem.product?._id || originalItem.product })
+      .then((res) => setProduct(res.data.data))
+      .catch(() => setProduct(null));
+  }, [type, canExchange, originalItem, product]);
+
+  const exchangeOptions = (product?.variants || [])
+    .filter((v) => v.sku !== originalItem.variant?.sku)
+    .map((v) => ({
+      value: v.sku,
+      label: `${v.colour?.name || ''} / ${v.size?.name || ''}${v.stock <= 0 ? ' — Out of stock' : ''}`,
+      disabled: v.stock <= 0,
+    }));
+
+  const handlePhotoUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (photos.length + files.length > 5) {
+      setError('Up to 5 photos only');
+      return;
+    }
+    setUploading(true);
+    try {
+      const urls = await Promise.all(files.map((f) => uploadFile(f, `returns/${order._id}`)));
+      setPhotos((p) => [...p, ...urls]);
+    } catch {
+      setError('Photo upload failed — please try again');
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
 
   const submit = async (e) => {
     e.preventDefault();
+    if (type === 'exchange' && !desiredSku) {
+      setError('Please choose the size/colour you want in exchange');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      await api.post('/order/return-request', { id: order._id, type, reason });
+      await api.post('/order/return-request', {
+        id: order._id,
+        type,
+        reason,
+        photos,
+        ...(type === 'exchange' && { desiredSku }),
+      });
       onDone();
     } catch (err) {
       setError(err.response?.data?.message || 'Request failed');
@@ -80,7 +134,7 @@ function ReturnModal({ order, onClose, onDone }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
-      <form onSubmit={submit} className="w-full max-w-md bg-white p-6">
+      <form onSubmit={submit} className="w-full max-w-md overflow-y-auto bg-white p-6" style={{ maxHeight: '90vh' }}>
         <h3 className="mb-4 font-heading text-xl italic text-ink">
           Return / Exchange — {order.orderNumber}
         </h3>
@@ -94,13 +148,39 @@ function ReturnModal({ order, onClose, onDone }) {
             <button
               type="button"
               key={t}
+              disabled={t === 'exchange' && !canExchange}
               onClick={() => setType(t)}
-              className={`border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] ${type === t ? 'border-ink bg-ink text-cream' : 'border-beige text-ink'}`}
+              className={`border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-40 ${type === t ? 'border-ink bg-ink text-cream' : 'border-beige text-ink'}`}
             >
               {t}
             </button>
           ))}
         </div>
+        {type === 'exchange' && !canExchange && (
+          <p className="mb-4 text-xs text-mauve-dark">
+            Exchanges are only available for orders with a single item — please contact support for multi-item orders.
+          </p>
+        )}
+        {type === 'exchange' && canExchange && (
+          <div className="mb-4">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">
+              Exchange for
+            </label>
+            <select
+              required
+              value={desiredSku}
+              onChange={(e) => setDesiredSku(e.target.value)}
+              className="w-full border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none focus:border-ink"
+            >
+              <option value="">{product ? 'Choose size/colour...' : 'Loading options...'}</option>
+              {exchangeOptions.map((o) => (
+                <option key={o.value} value={o.value} disabled={o.disabled}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <textarea
           rows={3}
           required
@@ -110,6 +190,39 @@ function ReturnModal({ order, onClose, onDone }) {
           placeholder="Tell us what went wrong (size, fit, damage...)"
           className="mb-4 w-full border border-beige px-4 py-3 text-sm text-ink outline-none focus:border-ink"
         />
+        <div className="mb-4">
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">
+            Photos (optional, up to 5)
+          </label>
+          {photos.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {photos.map((url, i) => (
+                <div key={url} className="relative">
+                  <img src={resolveImageUrl(url)} alt="" className="h-16 w-16 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setPhotos((p) => p.filter((_, idx) => idx !== i))}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
+                    aria-label="Remove photo"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {photos.length < 5 && (
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={uploading}
+              onChange={handlePhotoUpload}
+              className="w-full text-xs text-mauve-dark"
+            />
+          )}
+          {uploading && <p className="mt-1 text-xs text-mauve">Uploading...</p>}
+        </div>
         <div className="flex justify-end gap-3">
           <button
             type="button"
@@ -120,7 +233,7 @@ function ReturnModal({ order, onClose, onDone }) {
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploading}
             className="bg-ink px-6 py-2.5 text-xs font-semibold uppercase text-cream disabled:opacity-50"
           >
             {saving ? 'Submitting...' : 'Submit Request'}
@@ -278,6 +391,85 @@ function ProfileSection({ user, setUser, toast }) {
   );
 }
 
+function DangerZone({ toast, logout, navigate, confirm }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (
+      !(await confirm(
+        'This permanently deletes your account. Your order history is kept for our records but is no longer linked to your name or email. This cannot be undone.',
+        { confirmLabel: 'Delete My Account', cancelLabel: 'Keep My Account', danger: true },
+      ))
+    )
+      return;
+    setDeleting(true);
+    try {
+      await api.post('/auth/delete-account', { password });
+      toast('Your account has been deleted');
+      await logout();
+      navigate('/');
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not delete account', 'error');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="mb-12 border border-red-200 bg-white p-6">
+      <h2 className="mb-1 font-heading text-lg italic text-ink">Danger Zone</h2>
+      <p className="mb-4 text-sm text-mauve-dark">
+        Deleting your account is permanent and cannot be undone.
+      </p>
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="border border-red-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-red-700 transition-colors hover:bg-red-700 hover:text-white"
+        >
+          Delete My Account
+        </button>
+      ) : (
+        <form onSubmit={submit} className="max-w-sm space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">
+              Confirm your password
+            </label>
+            <input
+              type="password"
+              required
+              autoFocus
+              className={inputClass}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setPassword('');
+              }}
+              className="border border-beige px-5 py-2.5 text-xs font-semibold uppercase text-ink"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={deleting}
+              className="bg-red-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Permanently Delete'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default function Account() {
   useTitle('My Account');
   const user = useStore((s) => s.user);
@@ -334,6 +526,14 @@ export default function Account() {
     }
   };
 
+  const handleInvoiceDownload = async (o) => {
+    try {
+      await downloadInvoice(o);
+    } catch {
+      toast('Could not download invoice', 'error');
+    }
+  };
+
   return (
     <div className="min-h-[60vh] bg-cream font-body text-ink">
       <div className="mx-auto max-w-4xl px-6 py-12 md:px-10">
@@ -356,6 +556,8 @@ export default function Account() {
         </div>
 
         <ProfileSection user={user} setUser={setUser} toast={toast} />
+
+        <DangerZone toast={toast} logout={logout} navigate={navigate} confirm={confirm} />
 
         <h2 className="mb-5 font-heading text-xl italic text-ink">
           Your Orders
@@ -405,7 +607,13 @@ export default function Account() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleInvoiceDownload(o)}
+                    className="flex items-center gap-2 border border-beige px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-mauve-dark transition-all hover:border-ink hover:text-ink"
+                  >
+                    <Download size={13} /> Invoice
+                  </button>
                   {o.orderStatus === 'processing' && (
                     <button
                       onClick={() => cancelOrder(o)}

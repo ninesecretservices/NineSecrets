@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Eye, X, ImageOff } from 'lucide-react';
+import { Eye, ImageOff, Plus } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
-import useEscapeToClose from '../../utils/useEscapeToClose';
 import useStore from '../../store/useStore';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import Select from '../../components/admin/Select';
+import OrderDetailModal from '../../components/admin/OrderDetailModal';
+import ManualOrderModal from '../../components/admin/ManualOrderModal';
 
 const ORDER_STATUSES = ['processing', 'shipped', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['pending', 'completed', 'failed', 'refunded'];
@@ -20,15 +23,13 @@ const STATUS_STYLES = {
 
 function StatusSelect({ value, options, onChange }) {
   return (
-    <select
+    <Select
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[11px] capitalize text-ink outline-none ${STATUS_STYLES[value] || 'bg-beige'}`}
-    >
-      {options.map((s) => (
-        <option key={s} value={s}>{s}</option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={options.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+      className="w-auto min-w-[130px]"
+      triggerClassName={`flex cursor-pointer items-center justify-between gap-1.5 rounded-full border-0 px-2.5 py-1 text-left text-[11px] text-ink outline-none ${STATUS_STYLES[value] || 'bg-beige'}`}
+    />
   );
 }
 
@@ -38,6 +39,7 @@ export default function Orders() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const [detail, setDetail] = useState(null);
+  const [showManualOrder, setShowManualOrder] = useState(false);
   const toast = useStore((s) => s.toast);
 
   useEscapeToClose(!!detail, () => setDetail(null));
@@ -58,16 +60,6 @@ export default function Orders() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const resolveReturn = async (id, status) => {
-    try {
-      const res = await api.post('/order/return-update', { id, status });
-      setDetail(res.data.data);
-      fetchOrders();
-    } catch (err) {
-      toast(err.response?.data?.message || 'Failed to update return request', 'error');
-    }
-  };
-
   const updateOrder = async (id, patch) => {
     const prev = orders;
     setOrders((os) => os.map((o) => (o._id === id ? { ...o, ...patch } : o)));
@@ -86,9 +78,9 @@ export default function Orders() {
 
   return (
     <div className="rounded-2xl border border-beige bg-white p-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-heading text-2xl italic text-ink">Orders</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setFilter('')}
             className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-all ${!filter ? 'border-ink bg-ink text-cream' : 'border-beige text-ink'}`}
@@ -104,6 +96,12 @@ export default function Orders() {
               {s}
             </button>
           ))}
+          <button
+            onClick={() => setShowManualOrder(true)}
+            className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-cream transition-opacity hover:opacity-85"
+          >
+            <Plus size={14} /> New Order
+          </button>
         </div>
       </div>
 
@@ -194,113 +192,25 @@ export default function Orders() {
         </table>
       </div>
 
-      {/* Order detail modal */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading text-xl italic text-ink">{detail.orderNumber}</h3>
-                <p className="text-xs text-mauve">{new Date(detail.createdAt).toLocaleString()}</p>
-              </div>
-              <button onClick={() => setDetail(null)} className="text-mauve hover:text-ink" aria-label="Close">
-                <X size={20} strokeWidth={1.5} />
-              </button>
-            </div>
+        <OrderDetailModal
+          order={detail}
+          onClose={() => setDetail(null)}
+          onResolved={(updated) => {
+            setDetail(updated);
+            fetchOrders();
+          }}
+        />
+      )}
 
-            <div className="mb-5 grid grid-cols-2 gap-4 text-sm">
-              <div className="rounded-xl bg-cream p-4">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-mauve">Customer</p>
-                <p className="font-medium text-ink">{detail.user?.name || '—'}</p>
-                <p className="text-mauve-dark">{detail.user?.email}</p>
-              </div>
-              <div className="rounded-xl bg-cream p-4">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-mauve">Shipping Address</p>
-                {detail.shippingAddress?.fullName ? (
-                  <>
-                    <p className="font-medium text-ink">{detail.shippingAddress.fullName}</p>
-                    <p className="text-mauve-dark">
-                      {[detail.shippingAddress.addressLine1, detail.shippingAddress.city, detail.shippingAddress.state, detail.shippingAddress.postalCode]
-                        .filter(Boolean).join(', ')}
-                    </p>
-                    <p className="text-mauve-dark">{detail.shippingAddress.phone}</p>
-                  </>
-                ) : (
-                  <p className="text-mauve">Not provided</p>
-                )}
-              </div>
-            </div>
-
-            <table className="mb-5 w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
-                  <th className="py-2 pr-3">Item</th>
-                  <th className="py-2 pr-3">SKU</th>
-                  <th className="py-2 pr-3">Qty</th>
-                  <th className="py-2 text-right">Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(detail.items || []).map((it, i) => (
-                  <tr key={i} className="border-b border-beige/60">
-                    <td className="py-2.5 pr-3 text-ink">{it.name}</td>
-                    <td className="py-2.5 pr-3 text-mauve-dark">{it.variant?.sku || '—'}</td>
-                    <td className="py-2.5 pr-3 text-mauve-dark">{it.quantity}</td>
-                    <td className="py-2.5 text-right font-medium text-ink">₹{it.price}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="ml-auto w-56 space-y-1.5 text-sm">
-              <div className="flex justify-between text-mauve-dark"><span>Subtotal</span><span>₹{detail.subtotal}</span></div>
-              {detail.coupon?.discount > 0 && (
-                <div className="flex justify-between text-mauve-dark"><span>Discount ({detail.coupon.code})</span><span>−₹{detail.coupon.discount}</span></div>
-              )}
-              <div className="flex justify-between text-mauve-dark"><span>Tax</span><span>₹{detail.tax}</span></div>
-              <div className="flex justify-between text-mauve-dark"><span>Shipping</span><span>₹{detail.shippingFee}</span></div>
-              <div className="flex justify-between border-t border-beige pt-1.5 font-bold text-ink"><span>Total</span><span>₹{detail.total}</span></div>
-            </div>
-
-            {/* Return / exchange handling */}
-            {detail.returnRequest?.status && detail.returnRequest.status !== 'none' && (
-              <div className="mt-6 rounded-xl bg-cream p-4">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-mauve">
-                  {detail.returnRequest.type} request — <span className="capitalize text-ink">{detail.returnRequest.status}</span>
-                </p>
-                <p className="mb-3 text-sm text-mauve-dark">“{detail.returnRequest.reason}”</p>
-                {['requested', 'approved'].includes(detail.returnRequest.status) && (
-                  <div className="flex gap-2">
-                    {detail.returnRequest.status === 'requested' && (
-                      <>
-                        <button
-                          onClick={() => resolveReturn(detail._id, 'approved')}
-                          className="rounded-full bg-pastel-green px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => resolveReturn(detail._id, 'rejected')}
-                          className="rounded-full bg-blush px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {detail.returnRequest.status === 'approved' && (
-                      <button
-                        onClick={() => resolveReturn(detail._id, 'completed')}
-                        className="rounded-full bg-ink px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-cream"
-                      >
-                        Mark Completed (restocks items{detail.returnRequest.type === 'return' ? ' + refund' : ''})
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+      {showManualOrder && (
+        <ManualOrderModal
+          onClose={() => setShowManualOrder(false)}
+          onCreated={() => {
+            setShowManualOrder(false);
+            fetchOrders();
+          }}
+        />
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { uploadFile, uploadMedia, deleteImage } from '../../utils/upload';
 import { HOME_DEFAULTS, SECTION_LABELS, normalizeHomepage } from '../../utils/homeContent';
 import useEscapeToClose from '../../utils/useEscapeToClose';
 import useConfirm from '../../utils/useConfirm';
+import Select from '../../components/admin/Select';
 
 const inputClass =
   'w-full rounded-xl border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
@@ -103,11 +104,15 @@ function ProductRowEditor({ title, config, onChange, allProducts }) {
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Products shown</label>
-          <select className={inputClass} value={config.mode} onChange={(e) => onChange({ mode: e.target.value })}>
-            <option value="featured">Auto — Featured products</option>
-            <option value="newest">Auto — Newest products</option>
-            <option value="custom">Hand-picked</option>
-          </select>
+          <Select
+            value={config.mode}
+            onChange={(val) => onChange({ mode: val })}
+            options={[
+              { value: 'featured', label: 'Auto — Featured products' },
+              { value: 'newest', label: 'Auto — Newest products' },
+              { value: 'custom', label: 'Hand-picked' },
+            ]}
+          />
         </div>
         <div>
           <label className={labelClass}>Max count</label>
@@ -188,41 +193,51 @@ function LinkPicker({ value, onChange, categories, products }) {
     <div>
       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Where should it go?</label>
       <div className="flex flex-wrap gap-2">
-        <select value={parsed.type} onChange={(e) => setType(e.target.value)} className={secondary} style={{ flexGrow: 0, minWidth: 170 }}>
-          <option value="all">All products</option>
-          <option value="newest">New arrivals</option>
-          <option value="category">A category</option>
-          <option value="product">A specific product</option>
-          <option value="page">A page</option>
-          <option value="custom">Custom link (advanced)</option>
-        </select>
+        <Select
+          value={parsed.type}
+          onChange={setType}
+          className="flex-shrink-0"
+          triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+          options={[
+            { value: 'all', label: 'All products' },
+            { value: 'newest', label: 'New arrivals' },
+            { value: 'category', label: 'A category' },
+            { value: 'product', label: 'A specific product' },
+            { value: 'page', label: 'A page' },
+            { value: 'custom', label: 'Custom link (advanced)' },
+          ]}
+        />
         {parsed.type === 'category' && (
-          <select
+          <Select
             value={parsed.id || ''}
-            onChange={(e) => {
-              const c = categories.find((x) => x._id === e.target.value);
+            onChange={(val) => {
+              const c = categories.find((x) => x._id === val);
               if (c) onChange(`/collection?item=${c._id}&cat=${encodeURIComponent(c.name)}`);
             }}
-            className={secondary}
-          >
-            {categories.length === 0 && <option value="">No categories yet</option>}
-            {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={categories.map((c) => ({ value: c._id, label: c.name }))}
+            placeholder="No categories yet"
+          />
         )}
         {parsed.type === 'product' && (
-          <select
+          <Select
             value={parsed.slug || ''}
-            onChange={(e) => onChange(`/product/${e.target.value}`)}
-            className={secondary}
-          >
-            {products.length === 0 && <option value="">No products yet</option>}
-            {products.map((p) => <option key={p._id} value={p.slug}>{p.name}</option>)}
-          </select>
+            onChange={(val) => onChange(`/product/${val}`)}
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={products.map((p) => ({ value: p.slug, label: p.name }))}
+            placeholder="No products yet"
+          />
         )}
         {parsed.type === 'page' && (
-          <select value={parsed.page || PAGE_OPTIONS[0].value} onChange={(e) => onChange(e.target.value)} className={secondary}>
-            {PAGE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+          <Select
+            value={parsed.page || PAGE_OPTIONS[0].value}
+            onChange={onChange}
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={PAGE_OPTIONS}
+          />
         )}
         {parsed.type === 'custom' && (
           <input value={parsed.value || ''} onChange={(e) => onChange(e.target.value)} placeholder="/collection?search=..." className={secondary} />

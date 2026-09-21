@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useStore from '../store/useStore';
 import api from '../utils/api';
+import { ADMIN_ROLES } from '../components/AdminLayout';
 
 const inputClass =
   'w-full border border-beige bg-white px-5 py-3 text-sm text-ink outline-none transition-colors focus:border-ink';
@@ -18,6 +19,9 @@ export default function Login() {
   const syncGuestCartToServer = useStore(
     (state) => state.syncGuestCartToServer,
   );
+  const syncGuestWishlistToServer = useStore(
+    (state) => state.syncGuestWishlistToServer,
+  );
   const navigate = useNavigate();
 
   const finishAuth = (data) => {
@@ -25,9 +29,10 @@ export default function Login() {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     setUser(user);
-    // Carry any guest-bag items into the account's cart.
+    // Carry any guest-bag/wishlist items into the account.
     syncGuestCartToServer();
-    if (user.role === 'superadmin' || user.role === 'admin') {
+    syncGuestWishlistToServer();
+    if (ADMIN_ROLES.includes(user.role)) {
       navigate('/admin');
     } else {
       navigate('/');

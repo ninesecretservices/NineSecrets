@@ -20,6 +20,7 @@ import '../schema/Cart.js';
 import '../schema/Order.js';
 import '../schema/Review.js';
 import '../schema/Setting.js';
+import '../schema/AuditLog.js';
 
 const connectDB = async () => {
   try {

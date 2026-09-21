@@ -1,5 +1,6 @@
 import Setting from '../schema/Setting.js';
 import ApiError from '../utils/ApiError.js';
+import { logAudit } from '../utils/auditLog.js';
 
 // Keys the storefront may read without auth.
 const PUBLIC_KEYS = ['homepage', 'commerce', 'theme'];
@@ -84,6 +85,8 @@ class SettingController {
       { upsert: true, setDefaultsOnInsert: true }
     );
 
+    logAudit({ actor: req.user, action: 'setting.publish', entityType: 'Setting', entityId: doc?._id, summary: `Published "${key}" content` });
+
     res.locals.responseData = { success: true, message: 'Published', data: next_ };
     next();
   }
@@ -105,6 +108,8 @@ class SettingController {
       { key },
       { value: version.content, draft: null, versions, updatedBy: req.user.id, updatedByName: req.user.name }
     );
+
+    logAudit({ actor: req.user, action: 'setting.revert', entityType: 'Setting', entityId: doc._id, summary: `Reverted "${key}" to a previous version (published ${new Date(version.publishedAt).toLocaleDateString()})` });
 
     res.locals.responseData = { success: true, message: 'Version restored', data: version.content };
     next();

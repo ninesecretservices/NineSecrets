@@ -1,10 +1,13 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { CircleCheck } from 'lucide-react';
+import { CircleCheck, Download } from 'lucide-react';
+import { downloadInvoice } from '../utils/invoice';
+import useStore from '../store/useStore';
 
 export default function OrderSuccess() {
   const { orderNumber } = useParams();
   const { state } = useLocation();
   const order = state?.order;
+  const toast = useStore((s) => s.toast);
 
   return (
     <div className="flex min-h-[65vh] items-center justify-center bg-cream px-6 py-16 font-body">
@@ -70,6 +73,21 @@ export default function OrderSuccess() {
               </div>
             </div>
           </div>
+        )}
+
+        {order && (
+          <button
+            onClick={async () => {
+              try {
+                await downloadInvoice(order);
+              } catch {
+                toast('Could not download invoice', 'error');
+              }
+            }}
+            className="mb-4 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-mauve-dark underline underline-offset-4 hover:text-ink"
+          >
+            <Download size={13} /> Download Invoice
+          </button>
         )}
 
         <div className="flex justify-center gap-4">

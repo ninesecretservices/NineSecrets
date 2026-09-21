@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Star, Heart, Minus, Plus, ChevronDown, ChevronUp, BadgeCheck, X } from 'lucide-react';
-import api from '../utils/api';
+import api, { resolveImageUrl } from '../utils/api';
 import useStore from '../store/useStore';
 import ProductCard, { ColorDot } from '../components/ProductCard';
 import { toCardProduct } from '../utils/designData';
@@ -126,7 +126,7 @@ function ReviewForm({ productId, user, onSaved }) {
       <div className="mb-4 flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button type="button" key={n} onClick={() => setRating(n)} aria-label={`${n} stars`}>
-            <Star size={22} strokeWidth={1.5} className={n <= rating ? 'fill-baby-pink text-baby-pink' : 'text-mauve'} />
+            <Star size={22} strokeWidth={1.5} className={n <= rating ? 'fill-ink text-ink' : 'text-mauve'} />
           </button>
         ))}
       </div>
@@ -231,7 +231,10 @@ export default function ProductDetail() {
   const toast = useStore((s) => s.toast);
   const wishlisted = product && wishlist.some((p) => p.id === product._id);
 
-  useTitle(product?.name, product?.description);
+  useTitle(product?.name, product?.description, {
+    image: product?.thumbnail ? resolveImageUrl(product.thumbnail) : undefined,
+    type: 'product',
+  });
 
   useEffect(() => {
     (async () => {
@@ -340,8 +343,34 @@ export default function ProductDetail() {
     addToCart(product, activeVariant, qty, activeVariant.sellingPrice || activeVariant.mrp);
   };
 
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description || undefined,
+    image: product.thumbnail ? [resolveImageUrl(product.thumbnail)] : undefined,
+    sku: displayVariant?.sku || product.slug,
+    offers: {
+      '@type': 'Offer',
+      url: window.location.href,
+      priceCurrency: 'INR',
+      price,
+      availability: canBuy && stock > 0
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+    },
+    ...(reviews.count > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: reviews.average,
+        reviewCount: reviews.count,
+      },
+    }),
+  };
+
   return (
     <div className="min-h-screen bg-cream pb-20 font-body text-ink md:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       {/* Sticky mobile buy bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-beige bg-surface px-5 py-3 md:hidden">
         <div>
@@ -405,7 +434,7 @@ export default function ProductDetail() {
                     key={n}
                     size={14}
                     strokeWidth={1.5}
-                    className={n <= Math.round(reviews.average) ? 'fill-baby-pink text-baby-pink' : 'text-beige'}
+                    className={n <= Math.round(reviews.average) ? 'fill-ink text-ink' : 'text-beige'}
                   />
                 ))}
               </div>
@@ -581,7 +610,7 @@ export default function ProductDetail() {
                       <div className="mb-1 flex items-center gap-2">
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4, 5].map((n) => (
-                            <Star key={n} size={12} strokeWidth={1.5} className={n <= r.rating ? 'fill-baby-pink text-baby-pink' : 'text-beige'} />
+                            <Star key={n} size={12} strokeWidth={1.5} className={n <= r.rating ? 'fill-ink text-ink' : 'text-beige'} />
                           ))}
                         </div>
                         <span className="text-xs font-semibold text-ink">{r.user?.name || 'Customer'}</span>

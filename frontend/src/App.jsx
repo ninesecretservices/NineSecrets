@@ -15,6 +15,11 @@ import Coupons from './pages/admin/Coupons';
 import Homepage from './pages/admin/Homepage';
 import StoreSettings from './pages/admin/StoreSettings';
 import StockImport from './pages/admin/StockImport';
+import ProductImport from './pages/admin/ProductImport';
+import AuditLog from './pages/admin/AuditLog';
+import Returns from './pages/admin/Returns';
+import Customers from './pages/admin/Customers';
+import Reports from './pages/admin/Reports';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Wishlist from './pages/Wishlist';
@@ -58,11 +63,16 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="products" element={<Products />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="returns" element={<Returns />} />
+          <Route path="customers" element={<Customers />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="coupons" element={<Coupons />} />
           <Route path="homepage" element={<Homepage />} />
           <Route path="store-settings" element={<StoreSettings />} />
           <Route path="stock-import" element={<StockImport />} />
+          <Route path="product-import" element={<ProductImport />} />
           <Route path="users" element={<Users />} />
+          <Route path="audit-log" element={<AuditLog />} />
           <Route path="departments" element={<Departments />} />
           <Route path="items" element={<Items />} />
           <Route path="designs" element={<Designs />} />

@@ -8,6 +8,10 @@ const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em
 const DEFAULTS = {
   freeShippingThreshold: 599,
   shippingFee: 50,
+  standardShippingDays: '3-5 business days',
+  expressShippingEnabled: false,
+  expressShippingFee: 150,
+  expressShippingDays: '1-2 business days',
   codEnabled: true,
   lowStockThreshold: 5,
   maxOrderQty: 10,
@@ -70,11 +74,37 @@ export default function StoreSettings() {
             <p className="mt-1 text-[11px] text-mauve">Also shown in the cart's free-shipping progress bar.</p>
           </div>
           <div>
-            <label className={labelClass}>Shipping Fee Below That (₹)</label>
+            <label className={labelClass}>Standard Shipping Fee Below That (₹)</label>
             <input type="number" min="0" className={inputClass} value={cfg.shippingFee}
               onChange={(e) => setCfg({ ...cfg, shippingFee: Number(e.target.value) || 0 })} />
           </div>
+          <div>
+            <label className={labelClass}>Standard Delivery Estimate</label>
+            <input className={inputClass} value={cfg.standardShippingDays}
+              onChange={(e) => setCfg({ ...cfg, standardShippingDays: e.target.value })} />
+          </div>
         </div>
+
+        <label className="mb-4 flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" className="h-4 w-4 accent-[#201820]" checked={cfg.expressShippingEnabled}
+            onChange={(e) => setCfg({ ...cfg, expressShippingEnabled: e.target.checked })} />
+          Offer Express Shipping at checkout
+        </label>
+        {cfg.expressShippingEnabled && (
+          <div className="mb-6 grid grid-cols-2 gap-4 rounded-xl bg-cream p-4">
+            <div>
+              <label className={labelClass}>Express Shipping Fee (₹)</label>
+              <input type="number" min="0" className={inputClass} value={cfg.expressShippingFee}
+                onChange={(e) => setCfg({ ...cfg, expressShippingFee: Number(e.target.value) || 0 })} />
+              <p className="mt-1 text-[11px] text-mauve">Always charged — never covered by the free-shipping threshold above.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Express Delivery Estimate</label>
+              <input className={inputClass} value={cfg.expressShippingDays}
+                onChange={(e) => setCfg({ ...cfg, expressShippingDays: e.target.value })} />
+            </div>
+          </div>
+        )}
 
         <h2 className="mb-4 font-heading text-lg italic text-ink">Payments</h2>
         <label className="mb-6 flex items-center gap-2 text-sm text-ink">

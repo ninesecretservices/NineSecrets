@@ -65,6 +65,46 @@ const useStore = create((set, get) => ({
     }
   },
 
+  // Converts a raw Product doc (from the server) into the lightweight
+  // display shape the wishlist UI already uses everywhere (see PDP's
+  // toggleWishlist call for the canonical shape).
+  productToWishlistCard: (p) => ({
+    id: p._id,
+    slug: p.slug,
+    name: p.name,
+    tag: p.isFeatured ? 'BEST SELLER' : 'NEW IN',
+    price: p.sellingPrice ?? p.variants?.[0]?.sellingPrice ?? p.mrp,
+    mrp: p.mrp ?? p.variants?.[0]?.mrp,
+    img: p.thumbnail,
+  }),
+
+  // Loads the logged-in user's wishlist from the server. Guests keep using
+  // the localStorage copy already in state.
+  fetchWishlist: async () => {
+    const { user, productToWishlistCard } = get();
+    if (!user) return;
+    try {
+      const res = await api.post('/wishlist/list');
+      set({ wishlist: (res.data.data || []).map(productToWishlistCard) });
+    } catch (e) {
+      console.error('Failed to fetch wishlist', e);
+    }
+  },
+
+  // Push any guest-wishlist items into the server wishlist right after login.
+  syncGuestWishlistToServer: async () => {
+    const guest = loadJSON('wishlist', []);
+    try {
+      if (guest.length > 0) {
+        await api.post('/wishlist/merge', { productIds: guest.map((p) => p.id) });
+        localStorage.removeItem('wishlist'); // now server-authoritative for this session
+      }
+      await get().fetchWishlist();
+    } catch (e) {
+      console.error('Wishlist sync failed', e);
+    }
+  },
+
   logout: async () => {
     try {
       await api.post('/auth/logout');
@@ -74,17 +114,37 @@ const useStore = create((set, get) => ({
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
-    set({ user: null, cart: loadJSON('guestCart', { items: [], total: 0 }) });
+    set({
+      user: null,
+      cart: loadJSON('guestCart', { items: [], total: 0 }),
+      wishlist: loadJSON('wishlist', []),
+    });
   },
 
-  // ---- Wishlist (persisted locally) ----
-  toggleWishlist: (product) => {
-    const { wishlist, toast } = get();
+  // ---- Wishlist ----
+  // Guests: localStorage only. Logged in: persisted server-side (User.wishlist)
+  // so it survives across devices — syncGuestWishlistToServer merges any local
+  // guest picks in right after login (see Login.jsx).
+  toggleWishlist: async (product) => {
+    const { user, wishlist, toast } = get();
     const exists = wishlist.some((p) => p.id === product.id);
     const next = exists ? wishlist.filter((p) => p.id !== product.id) : [...wishlist, product];
-    localStorage.setItem('wishlist', JSON.stringify(next));
-    set({ wishlist: next });
+
+    if (!user) {
+      localStorage.setItem('wishlist', JSON.stringify(next));
+      set({ wishlist: next });
+      toast(exists ? 'Removed from wishlist' : 'Saved to wishlist ♥');
+      return;
+    }
+
+    set({ wishlist: next }); // optimistic
     toast(exists ? 'Removed from wishlist' : 'Saved to wishlist ♥');
+    try {
+      await api.post('/wishlist/toggle', { productId: product.id });
+    } catch (e) {
+      set({ wishlist }); // roll back on failure
+      toast('Could not update wishlist', 'error');
+    }
   },
   isWishlisted: (id) => get().wishlist.some((p) => p.id === id),
 
@@ -140,7 +200,10 @@ const useStore = create((set, get) => ({
       }
       const res = await api.post('/cart/update', { items: currentItems });
       set({ cart: res.data.data, isCartOpen: true });
-      toast('Added to your bag');
+      // cartUpdate re-validates stock/price server-side and reports back
+      // (via `message`) if it had to drop or reduce a line — surface that
+      // instead of a generic success toast so the shopper knows why.
+      toast(res.data.message === 'Cart updated successfully' ? 'Added to your bag' : res.data.message, res.data.message === 'Cart updated successfully' ? 'success' : 'error');
     } catch (error) {
       console.error('Failed to update cart', error);
       toast(error.response?.data?.message || 'Could not add to bag', 'error');
@@ -163,6 +226,9 @@ const useStore = create((set, get) => ({
     try {
       const res = await api.post('/cart/update', { items });
       set({ cart: res.data.data });
+      if (res.data.message !== 'Cart updated successfully') {
+        toast(res.data.message, 'error');
+      }
     } catch (error) {
       toast(error.response?.data?.message || 'Could not update bag', 'error');
     }

@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Pencil, Trash2, Plus, X, Upload, ImageOff, Sparkles } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, Upload, ImageOff, Sparkles, Copy, Percent } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
 import { uploadFile, deleteImage, slugifyFolder } from '../../utils/upload';
 import { inr } from '../../utils/format';
 import useEscapeToClose from '../../utils/useEscapeToClose';
+import useSpaceToAdd from '../../utils/useSpaceToAdd';
 import useConfirm from '../../utils/useConfirm';
 import usePrompt from '../../utils/usePrompt';
+import Select from '../../components/admin/Select';
+import useStore from '../../store/useStore';
 
 const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '' };
 
@@ -94,10 +97,14 @@ function QuickAdd({ label, endpoint, extraFields = [], departments = [], onCreat
           <input type="color" value={hex} onChange={(e) => setHex(e.target.value)} className="h-9 w-12 cursor-pointer rounded-lg border border-beige bg-white p-0.5" />
         )}
         {extraFields.includes('department') && (
-          <select value={dept} onChange={(e) => setDept(e.target.value)} className="rounded-lg border border-beige bg-white px-3 py-2 text-sm text-ink outline-none">
-            <option value="">Department...</option>
-            {departments.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-          </select>
+          <Select
+            value={dept}
+            onChange={setDept}
+            options={departments.map((d) => ({ value: d._id, label: d.name }))}
+            placeholder="Department..."
+            className="w-44"
+            triggerClassName="flex w-full items-center justify-between gap-2 rounded-lg border border-beige bg-white px-3 py-2 text-left text-sm text-ink outline-none"
+          />
         )}
         <button type="button" onClick={create} disabled={busy} className="rounded-full bg-ink px-4 py-2 text-[11px] font-semibold uppercase text-cream disabled:opacity-50">
           {busy ? '...' : 'Add'}
@@ -124,6 +131,12 @@ export default function Products() {
   const [editingId, setEditingId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkPriceOpen, setBulkPriceOpen] = useState(false);
+  const [bulkPriceMode, setBulkPriceMode] = useState('percent');
+  const [bulkPriceValue, setBulkPriceValue] = useState('');
+  const [bulkPriceSaving, setBulkPriceSaving] = useState(false);
+  const toast = useStore((s) => s.toast);
   const { confirm, ConfirmDialog } = useConfirm();
   const { prompt, PromptDialog } = usePrompt();
 
@@ -137,6 +150,7 @@ export default function Products() {
     try {
       const res = await api.post('/product/list', { page: 1, limit: 100 });
       setData(res.data.data.docs || res.data.data);
+      setSelected(new Set());
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load products');
     }
@@ -307,6 +321,11 @@ export default function Products() {
     e.preventDefault();
     setFormError('');
 
+    if (!formData.department || !formData.item) {
+      setFormError('Department and Category are both required.');
+      return;
+    }
+
     const cleanVariants = variants
       .filter((v) => v.colour && v.size && v.fit)
       .map((v) => ({
@@ -349,6 +368,7 @@ export default function Products() {
   const [deleteError, setDeleteError] = useState('');
 
   useEscapeToClose(!!deleteTarget, () => setDeleteTarget(null));
+  useSpaceToAdd(() => handleOpenModal(), isModalOpen || !!deleteTarget);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -362,6 +382,67 @@ export default function Products() {
       setDeleteError(err.response?.data?.message || 'Delete failed');
     }
     setDeleting(false);
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = data.length > 0 && selected.size === data.length;
+  const toggleSelectAll = () => {
+    setSelected(allSelected ? new Set() : new Set(data.map((r) => r._id)));
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (!(await confirm(
+      `Remove ${count} selected product${count === 1 ? '' : 's'} from the store? Past orders that include them keep their records.`,
+      { confirmLabel: `Remove ${count}`, danger: true }
+    ))) return;
+    const ids = [...selected];
+    const results = await Promise.allSettled(ids.map((id) => api.post('/product/delete', { id })));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      toast(`Removed ${ids.length - failed} of ${ids.length} — ${failed} failed`, 'error');
+    } else {
+      toast(`Removed ${ids.length} product${ids.length === 1 ? '' : 's'}`);
+    }
+    fetchData();
+  };
+
+  const handleBulkPriceUpdate = async () => {
+    const value = Number(bulkPriceValue);
+    if (!bulkPriceValue || Number.isNaN(value)) {
+      toast('Enter a number', 'error');
+      return;
+    }
+    setBulkPriceSaving(true);
+    try {
+      const res = await api.post('/product/bulk-price-update', { ids: [...selected], mode: bulkPriceMode, value });
+      toast(res.data.message);
+      setBulkPriceOpen(false);
+      setBulkPriceValue('');
+      setSelected(new Set());
+      fetchData();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Bulk price update failed', 'error');
+    }
+    setBulkPriceSaving(false);
+  };
+
+  const handleDuplicate = async (row) => {
+    try {
+      await api.post('/product/duplicate', { id: row._id });
+      toast(`Duplicated "${row.name}" as a draft`);
+      fetchData();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not duplicate product', 'error');
+    }
   };
 
   const priceRange = (row) => {
@@ -383,12 +464,30 @@ export default function Products() {
             Everything you sell. A product needs at least one option row (colour + size) with a price and stock before customers can buy it.
           </p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex flex-shrink-0 items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
-        >
-          <Plus size={15} /> Add Product
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {selected.size > 0 && (
+            <>
+              <button
+                onClick={() => setBulkPriceOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream"
+              >
+                <Percent size={15} /> Adjust Prices ({selected.size})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 rounded-full border border-red-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-red-700 transition-colors hover:bg-blush/60"
+              >
+                <Trash2 size={15} /> Delete Selected ({selected.size})
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
+          >
+            <Plus size={15} /> Add Product
+          </button>
+        </div>
       </div>
 
       {error && <div className="mb-4 rounded-xl bg-blush px-4 py-3 text-sm text-ink">{error}</div>}
@@ -397,6 +496,17 @@ export default function Products() {
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
+              <th className="w-9 py-2.5 pr-2">
+                {data.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all"
+                    className="h-4 w-4 cursor-pointer accent-ink"
+                  />
+                )}
+              </th>
               <th className="py-2.5 pr-3">Product</th>
               <th className="py-2.5 pr-3">Department</th>
               <th className="py-2.5 pr-3">Options</th>
@@ -408,12 +518,21 @@ export default function Products() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="py-8 text-center text-mauve">Loading...</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-mauve">Loading...</td></tr>
             ) : data.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-mauve">No products yet — click "Add Product" and follow the steps.</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-mauve">No products yet — click "Add Product" and follow the steps.</td></tr>
             ) : (
               data.map((row) => (
-                <tr key={row._id} className="border-b border-beige/60 transition-colors hover:bg-cream/50">
+                <tr key={row._id} className={`border-b border-beige/60 transition-colors hover:bg-cream/50 ${selected.has(row._id) ? 'bg-cream/70' : ''}`}>
+                  <td className="py-3 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row._id)}
+                      onChange={() => toggleSelect(row._id)}
+                      aria-label="Select row"
+                      className="h-4 w-4 cursor-pointer accent-ink"
+                    />
+                  </td>
                   <td className="py-3 pr-3">
                     <div className="flex items-center gap-3">
                       {row.thumbnail ? (
@@ -444,6 +563,9 @@ export default function Products() {
                     <div className="flex justify-end gap-1">
                       <button onClick={() => handleOpenModal(row)} className="rounded-lg p-2 text-ink transition-colors hover:bg-beige/60" aria-label="Edit">
                         <Pencil size={16} strokeWidth={1.5} />
+                      </button>
+                      <button onClick={() => handleDuplicate(row)} className="rounded-lg p-2 text-ink transition-colors hover:bg-beige/60" aria-label="Duplicate">
+                        <Copy size={16} strokeWidth={1.5} />
                       </button>
                       <button onClick={() => { setDeleteError(''); setDeleteTarget(row); }} className="rounded-lg p-2 text-red-700 transition-colors hover:bg-blush/60" aria-label="Delete">
                         <Trash2 size={16} strokeWidth={1.5} />
@@ -490,20 +612,17 @@ export default function Products() {
                     <label className={`${labelClass} mb-0`}>Short Description</label>
                     <div className="flex items-center gap-2">
                       {master.descriptionTemplates.length > 0 && (
-                        <select
+                        <Select
                           value=""
-                          onChange={(e) => {
-                            const tpl = master.descriptionTemplates.find((t) => t._id === e.target.value);
+                          onChange={(val) => {
+                            const tpl = master.descriptionTemplates.find((t) => t._id === val);
                             if (tpl) applyDescriptionText(tpl.body);
-                            e.target.value = '';
                           }}
-                          className="rounded-full border border-beige bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink outline-none transition-colors hover:bg-cream"
-                        >
-                          <option value="">Insert template...</option>
-                          {master.descriptionTemplates.map((t) => (
-                            <option key={t._id} value={t._id}>{t.name}</option>
-                          ))}
-                        </select>
+                          options={master.descriptionTemplates.map((t) => ({ value: t._id, label: t.name }))}
+                          placeholder="Insert template..."
+                          className="w-48"
+                          triggerClassName="flex w-full items-center justify-between gap-2 rounded-full border border-beige bg-white px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-ink outline-none transition-colors hover:bg-cream"
+                        />
                       )}
                       <button
                         type="button"
@@ -528,18 +647,22 @@ export default function Products() {
                 </div>
                 <div>
                   <label className={labelClass}>Department</label>
-                  <select required value={formData.department || ''} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className={inputClass}>
-                    <option value="">Choose...</option>
-                    {master.departments.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                  </select>
+                  <Select
+                    required
+                    value={formData.department || ''}
+                    onChange={(val) => setFormData({ ...formData, department: val })}
+                    options={master.departments.map((o) => ({ value: o._id, label: o.name }))}
+                  />
                   <QuickAdd label="Department" endpoint="department" onCreated={(doc) => { fetchMasterData(); setFormData((f) => ({ ...f, department: doc._id })); }} />
                 </div>
                 <div>
                   <label className={labelClass}>Category</label>
-                  <select required value={formData.item || ''} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className={inputClass}>
-                    <option value="">Choose...</option>
-                    {master.items.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                  </select>
+                  <Select
+                    required
+                    value={formData.item || ''}
+                    onChange={(val) => setFormData({ ...formData, item: val })}
+                    options={master.items.map((o) => ({ value: o._id, label: o.name }))}
+                  />
                   <QuickAdd label="Category" endpoint="item" extraFields={['department']} departments={master.departments} onCreated={(doc) => { fetchMasterData(); setFormData((f) => ({ ...f, item: doc._id })); }} />
                 </div>
               </div>
@@ -620,24 +743,27 @@ export default function Products() {
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Colour</label>
-                        <select value={v.colour} onChange={(e) => setVariant(idx, 'colour', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.colours.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.colour}
+                          onChange={(val) => setVariant(idx, 'colour', val)}
+                          options={master.colours.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Size</label>
-                        <select value={v.size} onChange={(e) => setVariant(idx, 'size', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.sizes.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.size}
+                          onChange={(val) => setVariant(idx, 'size', val)}
+                          options={master.sizes.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Fit</label>
-                        <select value={v.fit} onChange={(e) => setVariant(idx, 'fit', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.fits.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.fit}
+                          onChange={(val) => setVariant(idx, 'fit', val)}
+                          options={master.fits.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-[1fr_1fr_80px_100px_100px_36px] items-end gap-3">
@@ -686,9 +812,11 @@ export default function Products() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Status</label>
-                  <select value={formData.status || 'active'} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={inputClass}>
-                    {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
+                  <Select
+                    value={formData.status || 'active'}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={STATUS_OPTIONS}
+                  />
                 </div>
                 <div className="flex items-end pb-1">
                   <label className="flex items-center gap-2 text-sm text-ink">
@@ -711,17 +839,21 @@ export default function Products() {
                 <div className="mt-3 grid grid-cols-3 gap-4 rounded-xl bg-cream p-4">
                   <div>
                     <label className={labelClass}>Design</label>
-                    <select value={formData.design || ''} onChange={(e) => setFormData({ ...formData, design: e.target.value })} className={inputClass}>
-                      <option value="">(None)</option>
-                      {master.designs.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                    </select>
+                    <Select
+                      value={formData.design || ''}
+                      onChange={(val) => setFormData({ ...formData, design: val })}
+                      options={master.designs.map((o) => ({ value: o._id, label: o.name }))}
+                      placeholder="(None)"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Fabric</label>
-                    <select value={formData.fabric || ''} onChange={(e) => setFormData({ ...formData, fabric: e.target.value })} className={inputClass}>
-                      <option value="">(None)</option>
-                      {master.fabrics.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                    </select>
+                    <Select
+                      value={formData.fabric || ''}
+                      onChange={(val) => setFormData({ ...formData, fabric: val })}
+                      options={master.fabrics.map((o) => ({ value: o._id, label: o.name }))}
+                      placeholder="(None)"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Tax %</label>
@@ -776,6 +908,58 @@ export default function Products() {
                 className="rounded-full bg-red-700 px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85 disabled:opacity-50"
               >
                 {deleting ? 'Removing...' : 'Remove Product'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkPriceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-heading text-lg italic text-ink">Adjust Prices</h3>
+            <p className="mb-5 text-sm text-mauve-dark">
+              Applies to every option (colour/size) of the {selected.size} selected product{selected.size === 1 ? '' : 's'} — each keeps its price relative to the others.
+            </p>
+            <div className="mb-4">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">Adjustment Type</label>
+              <Select
+                value={bulkPriceMode}
+                onChange={setBulkPriceMode}
+                options={[
+                  { value: 'percent', label: 'Percentage (%)' },
+                  { value: 'fixed', label: 'Flat Amount (₹)' },
+                ]}
+              />
+            </div>
+            <div className="mb-5">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">
+                Value {bulkPriceMode === 'percent' ? '(e.g. 10 for +10%, -10 for -10%)' : '(e.g. 50 or -50)'}
+              </label>
+              <input
+                type="number"
+                autoFocus
+                value={bulkPriceValue}
+                onChange={(e) => setBulkPriceValue(e.target.value)}
+                className="w-full rounded-lg border border-beige px-3 py-2 text-sm text-ink outline-none focus:border-ink"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setBulkPriceOpen(false)}
+                disabled={bulkPriceSaving}
+                className="rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkPriceUpdate}
+                disabled={bulkPriceSaving}
+                className="rounded-full bg-ink px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                {bulkPriceSaving ? 'Applying...' : 'Apply'}
               </button>
             </div>
           </div>

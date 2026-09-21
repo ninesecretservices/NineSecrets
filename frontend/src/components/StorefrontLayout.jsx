@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown } from 'lucide-react';
 import useStore from '../store/useStore';
 import CartDrawer from './CartDrawer';
 import Toaster from './Toaster';
+import CookieConsent from './CookieConsent';
 import { getHomepageSettings, getPublicSetting } from '../utils/settings';
 import { HOME_DEFAULTS, normalizeHomepage, activeAnnouncements } from '../utils/homeContent';
 import { applyThemeTokens, clearThemeTokens } from '../utils/themes';
+import { initAnalyticsIfConsented, trackPageView } from '../utils/analytics';
+import { inr } from '../utils/format';
+import { ADMIN_ROLES } from './AdminLayout';
 
 function AnnouncementBar() {
   const [messages, setMessages] = useState(activeAnnouncements(normalizeHomepage(HOME_DEFAULTS)));
@@ -72,11 +76,54 @@ function useCategories() {
   return cats;
 }
 
+// Groups categories under their department (itemList already returns each
+// with `department: {_id, name}` populated) for the mega menu's columns.
+function groupByDepartment(categories) {
+  const groups = new Map();
+  for (const c of categories) {
+    const dept = c.department?.name || 'Other';
+    if (!groups.has(dept)) groups.set(dept, []);
+    groups.get(dept).push(c);
+  }
+  return [...groups.entries()];
+}
+
 const catLink = (c) => `/collection?item=${c._id}&cat=${encodeURIComponent(c.name)}`;
 
 function SearchOverlay({ open, onClose }) {
   const [q, setQ] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!q.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(() => {
+      import('../utils/api').then(({ default: api, resolveImageUrl }) =>
+        api.post('/product/public-list', { page: 1, limit: 5, search: q.trim() })
+          .then((res) => {
+            if (!cancelled) setSuggestions((res.data.data.docs || []).map((p) => ({ ...p, thumbUrl: resolveImageUrl(p.thumbnail) })));
+          })
+          .catch(() => {})
+          .finally(() => !cancelled && setSearching(false))
+      );
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [q]);
+
+  const goToProduct = (product) => {
+    navigate(`/product/${product.slug}`);
+    onClose();
+    setQ('');
+  };
 
   if (!open) return null;
   return (
@@ -114,6 +161,28 @@ function SearchOverlay({ open, onClose }) {
               placeholder="Search products..."
               className="w-full border border-beige bg-white py-3 pl-11 pr-4 text-sm text-ink outline-none transition-all placeholder:text-mauve focus:border-ink focus:shadow-[0_0_0_3px_rgba(32,24,32,0.06)]"
             />
+            {q.trim() && (suggestions.length > 0 || searching) && (
+              <div className="absolute inset-x-0 top-full z-10 mt-1.5 max-h-80 overflow-y-auto border border-beige bg-white shadow-xl">
+                {searching && suggestions.length === 0 ? (
+                  <p className="px-4 py-3 text-xs text-mauve">Searching...</p>
+                ) : (
+                  suggestions.map((p) => (
+                    <button
+                      type="button"
+                      key={p._id}
+                      onClick={() => goToProduct(p)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-cream"
+                    >
+                      {p.thumbUrl && <img src={p.thumbUrl} alt="" className="h-12 w-9 flex-shrink-0 object-cover" />}
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] text-ink">{p.name}</span>
+                        <span className="text-xs text-mauve">{inr(p.variants?.[0]?.sellingPrice ?? p.variants?.[0]?.mrp ?? 0)}</span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
           <button type="submit" className="shrink-0 bg-ink px-6 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85">
             Search
@@ -128,6 +197,7 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileCatsOpen, setMobileCatsOpen] = useState(false);
   const categories = useCategories();
+  const categoryGroups = groupByDepartment(categories);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
@@ -135,6 +205,7 @@ function Navbar() {
   const user = useStore((s) => s.user);
   const wishlist = useStore((s) => s.wishlist);
   const cart = useStore((s) => s.cart);
+  const fetchWishlist = useStore((s) => s.fetchWishlist);
   const cartCount = (cart?.items || []).reduce((n, i) => n + i.quantity, 0);
 
   useEffect(() => {
@@ -142,6 +213,13 @@ function Navbar() {
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // A returning logged-in user's wishlist lives on the server, not localStorage
+  // — load it once per session so PDP heart-fill state and the Wishlist page
+  // aren't stuck showing empty until something happens to trigger a fetch.
+  useEffect(() => {
+    if (user) fetchWishlist();
+  }, [user, fetchWishlist]);
 
   return (
     <>
@@ -165,14 +243,31 @@ function Navbar() {
                   <Link to={l.to} className="flex items-center gap-1 py-5 text-[13px] font-medium text-ink transition-opacity hover:opacity-60">
                     {l.label} <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-hover:rotate-180" />
                   </Link>
-                  <div className="invisible absolute left-1/2 top-full z-50 w-56 -translate-x-1/2 border border-beige bg-surface p-2 opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100">
-                    <Link to="/collection" className="block px-4 py-2.5 text-[13px] font-semibold text-ink hover:bg-cream">All Products</Link>
-                    <Link to="/collection?sort=newest" className="block px-4 py-2.5 text-[13px] text-ink hover:bg-cream">New In</Link>
-                    {categories.map((c) => (
-                      <Link key={c._id} to={catLink(c)} className="block px-4 py-2.5 text-[13px] text-ink hover:bg-cream">
-                        {c.name}
-                      </Link>
-                    ))}
+                  <div className="invisible absolute left-1/2 top-full z-50 flex w-[560px] -translate-x-1/2 border border-beige bg-surface opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100">
+                    <div className="grid flex-grow grid-cols-2 gap-x-8 p-6">
+                      {categoryGroups.length === 0 ? (
+                        <Link to="/collection" className="text-[13px] font-semibold text-ink hover:opacity-60">All Products</Link>
+                      ) : (
+                        categoryGroups.map(([dept, items]) => (
+                          <div key={dept}>
+                            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mauve">{dept}</p>
+                            <div className="flex flex-col gap-2">
+                              {items.map((c) => (
+                                <Link key={c._id} to={catLink(c)} className="text-[13px] text-ink transition-opacity hover:opacity-60">
+                                  {c.name}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex w-48 flex-shrink-0 flex-col justify-center gap-3 border-l border-beige bg-cream p-6">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-mauve">Shop By</p>
+                      <Link to="/collection" className="text-[13px] font-semibold text-ink transition-opacity hover:opacity-60">All Products</Link>
+                      <Link to="/collection?sort=newest" className="text-[13px] text-ink transition-opacity hover:opacity-60">New In</Link>
+                      <Link to="/bestsellers" className="text-[13px] text-ink transition-opacity hover:opacity-60">Bestsellers</Link>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -202,8 +297,8 @@ function Navbar() {
             <button
               onClick={() => {
                 if (!user) navigate('/login');
-                else if (user.role === 'customer') navigate('/account');
-                else navigate('/admin');
+                else if (ADMIN_ROLES.includes(user.role)) navigate('/admin');
+                else navigate('/account');
               }}
               className="hidden transition-opacity hover:opacity-60 md:block"
               aria-label="Account"
@@ -274,7 +369,7 @@ function Navbar() {
               <Heart size={16} strokeWidth={1.5} /> Wishlist {wishlist.length > 0 && `(${wishlist.length})`}
             </Link>
             <Link
-              to={!user ? '/login' : user.role === 'customer' ? '/account' : '/admin'}
+              to={!user ? '/login' : ADMIN_ROLES.includes(user.role) ? '/admin' : '/account'}
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-3 text-sm font-medium text-ink"
             >
@@ -434,6 +529,8 @@ function FloatingSocials() {
 }
 
 export default function StorefrontLayout() {
+  const location = useLocation();
+
   // Apply the brand theme (pastel green on cream) to the storefront; restore
   // the default palette when navigating back into the admin panel.
   useEffect(() => {
@@ -448,6 +545,18 @@ export default function StorefrontLayout() {
     };
   }, []);
 
+  // Loads GA/Meta Pixel only if the shopper has accepted cookies (and only if
+  // real IDs are configured) — retries on the banner's accept/reject choice.
+  useEffect(() => {
+    initAnalyticsIfConsented();
+    window.addEventListener('consentchange', initAnalyticsIfConsented);
+    return () => window.removeEventListener('consentchange', initAnalyticsIfConsented);
+  }, []);
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
   return (
     <div className="flex min-h-screen flex-col bg-cream font-body text-ink">
       <AnnouncementBar />
@@ -459,6 +568,7 @@ export default function StorefrontLayout() {
       <FloatingSocials />
       <CartDrawer />
       <Toaster />
+      <CookieConsent />
     </div>
   );
 }

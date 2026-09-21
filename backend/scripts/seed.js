@@ -18,6 +18,7 @@ const seed = async () => {
       // No hardcoded default — a fixed password would be a known credential in
       // every environment this script ever ran in, including production.
       const password = process.env.SEED_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
+      console.log(`Seeding superadmin with password: ${password}`);
       const hashedPassword = await bcrypt.hash(password, 10);
       await User.create({
         name: 'Super Admin',

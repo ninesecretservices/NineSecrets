@@ -43,6 +43,18 @@ const formSchema = [
     options: [
       { value: 'admin', label: 'Admin' },
       { value: 'superadmin', label: 'Superadmin' },
+      { value: 'fulfillment', label: 'Fulfillment (Orders only)' },
+      { value: 'catalog', label: 'Catalog (Products only)' },
+    ],
+  },
+  {
+    label: 'Status',
+    key: 'isActive',
+    type: 'select',
+    default: true,
+    options: [
+      { value: true, label: 'Active' },
+      { value: false, label: 'Inactive (blocked — cannot log in)' },
     ],
   },
 ];

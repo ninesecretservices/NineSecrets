@@ -230,13 +230,6 @@ export function ShippingPolicy() {
         </p>
       </div>
       <div>
-        <H>Packaging</H>
-        <p>
-          Every order ships in discreet, plain packaging with no external
-          branding describing the contents — your privacy matters to us.
-        </p>
-      </div>
-      <div>
         <H>Serviceability</H>
         <p>
           We currently ship within India only. If your pin code isn't

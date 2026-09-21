@@ -26,8 +26,16 @@ export const getCommerceSettings = () =>
   getPublicSetting('commerce').then((c) => ({
     freeShippingThreshold: 599,
     shippingFee: 50,
+    standardShippingDays: '3-5 business days',
+    expressShippingEnabled: false,
+    expressShippingFee: 150,
+    expressShippingDays: '1-2 business days',
     codEnabled: true,
     whatsappNumber: '',
     instagramUrl: '',
+    contactPhone: '',
+    contactEmail: '',
+    contactAddress: '',
+    facebookUrl: '',
     ...c,
   }));

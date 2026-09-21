@@ -17,7 +17,10 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['superadmin', 'admin', 'customer'],
+      // fulfillment: orders-only staff access. catalog: products/master-data-only
+      // staff access. Neither can delete records or reach Users/Coupons/Settings/
+      // Homepage — same restriction 'admin' itself already has for deletes.
+      enum: ['superadmin', 'admin', 'fulfillment', 'catalog', 'customer'],
       default: 'customer',
     },
     isActive: {
@@ -26,6 +29,11 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+    // Admin-only, customer-facing accounts only — internal notes/labels, never
+    // shown to the customer themselves.
+    notes: { type: String },
+    tags: [{ type: String }],
     addresses: [{
       label: { type: String, default: 'Home' },
       fullName: { type: String, required: true },

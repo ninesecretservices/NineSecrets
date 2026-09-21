@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Camera, ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
+import { Heart, Camera, ChevronLeft, ChevronRight, BadgeCheck, Volume2, VolumeX } from 'lucide-react';
 import api, { resolveImageUrl } from '../utils/api';
 import { getHomepageSettings } from '../utils/settings';
 import ProductCard from '../components/ProductCard';
 import useTitle from '../utils/useTitle';
-import { demoProducts, toCardProduct } from '../utils/designData';
+import { toCardProduct } from '../utils/designData';
 import {
   HOME_DEFAULTS,
-  HERO_DEFAULT_IMAGE,
-  PROMISE_DEFAULT_IMAGE,
-  INSTA_DEFAULT_IMAGES,
   normalizeHomepage,
   activeHero,
   heroSlides,
@@ -35,30 +32,38 @@ function HeroCarousel({ content }) {
 
   return (
     <section className="relative h-[78vh] min-h-[480px] w-full overflow-hidden bg-ink md:h-[88vh]">
-      <img
-        key={idx}
-        src={resolveImageUrl(h.image || HERO_DEFAULT_IMAGE)}
-        alt="Nine Secrets hero"
-        className="absolute inset-0 h-full w-full animate-[fadeSlide_0.6s_ease-out] object-cover object-top"
-      />
+      {h.image && (
+        <img
+          key={idx}
+          src={resolveImageUrl(h.image)}
+          alt="Nine Secrets hero"
+          className="absolute inset-0 h-full w-full animate-[fadeSlide_0.6s_ease-out] object-cover object-top"
+        />
+      )}
       <div className="absolute inset-0 bg-ink/30" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-        <span className="mb-4 block text-[11px] uppercase tracking-[0.18em] text-cream/90">{h.eyebrow}</span>
-        <h1
-          key={`h-${idx}`}
-          className="mb-4 max-w-2xl animate-[fadeSlide_0.6s_ease-out] whitespace-pre-line font-heading italic leading-[1.15] text-cream"
-          style={{ fontSize: 'clamp(32px, 4.6vw, 56px)' }}
-        >
-          {h.heading}
-        </h1>
-        <p className="mb-6 text-sm tracking-[0.04em] text-cream/90">{h.subtext}</p>
-        <div className="mb-9 text-[11px] uppercase tracking-[0.14em] text-cream/80">
-          Free Shipping Pan-India &middot; COD Available &middot; Easy Return
-        </div>
-        <Link to={h.link || '/collection'} className="bg-cream px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-white">
-          {h.ctaLabel}
-        </Link>
+        {h.eyebrow && (
+          <span className="mb-4 block text-[11px] uppercase tracking-[0.18em] text-cream/90">{h.eyebrow}</span>
+        )}
+        {h.heading && (
+          <h1
+            key={`h-${idx}`}
+            className="mb-4 max-w-2xl animate-[fadeSlide_0.6s_ease-out] whitespace-pre-line font-heading italic leading-[1.15] text-cream"
+            style={{ fontSize: 'clamp(32px, 4.6vw, 56px)' }}
+          >
+            {h.heading}
+          </h1>
+        )}
+        {h.subtext && <p className="mb-6 text-sm tracking-[0.04em] text-cream/90">{h.subtext}</p>}
+        {h.features && (
+          <div className="mb-9 text-[11px] uppercase tracking-[0.14em] text-cream/80">{h.features}</div>
+        )}
+        {h.ctaLabel && (
+          <Link to={h.link || '/collection'} className="bg-cream px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-white">
+            {h.ctaLabel}
+          </Link>
+        )}
       </div>
 
       {slides.length > 1 && (
@@ -98,26 +103,44 @@ function HeroCarousel({ content }) {
 // swipeable rows with visible arrow controls at the edges.
 function HScroller({ children, itemWidth = 320, arrowClassName = '' }) {
   const ref = useRef(null);
+  const [overflowing, setOverflowing] = useState(false);
   const scrollBy = (dir) => ref.current?.scrollBy({ left: dir * itemWidth, behavior: 'smooth' });
+
+  // Re-checked after every render (cheap — one layout read) so a short row
+  // (e.g. only 3 categories filled in) is centered with no dead arrows,
+  // while a row that actually overflows keeps the scrollable/arrow behavior.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  });
+
   return (
     <div className="relative">
-      <button
-        onClick={() => scrollBy(-1)}
-        aria-label="Scroll left"
-        className={`absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <div ref={ref} className="no-scrollbar flex gap-7 overflow-x-auto pb-4">
+      {overflowing && (
+        <button
+          onClick={() => scrollBy(-1)}
+          aria-label="Scroll left"
+          className={`absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
+        >
+          <ChevronLeft size={18} />
+        </button>
+      )}
+      <div ref={ref} className={`no-scrollbar flex gap-7 overflow-x-auto pb-4 ${overflowing ? '' : 'justify-center'}`}>
         {children}
       </div>
-      <button
-        onClick={() => scrollBy(1)}
-        aria-label="Scroll right"
-        className={`absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
-      >
-        <ChevronRight size={18} />
-      </button>
+      {overflowing && (
+        <button
+          onClick={() => scrollBy(1)}
+          aria-label="Scroll right"
+          className={`absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige bg-surface text-ink shadow-md transition-colors hover:bg-cream md:flex ${arrowClassName}`}
+        >
+          <ChevronRight size={18} />
+        </button>
+      )}
     </div>
   );
 }
@@ -231,9 +254,9 @@ function useRowProducts(rowConfig) {
         if (rowConfig.mode === 'custom' && rowConfig.productIds?.length) body.ids = rowConfig.productIds;
         const res = await api.post('/product/public-list', body);
         const docs = res.data.data.docs || [];
-        if (alive) setProducts(docs.length > 0 ? docs.map(toCardProduct) : demoProducts.slice(0, rowConfig.count || 4));
+        if (alive) setProducts(docs.map(toCardProduct));
       } catch {
-        if (alive) setProducts(demoProducts.slice(0, rowConfig.count || 4));
+        if (alive) setProducts([]);
       }
     })();
     return () => { alive = false; };
@@ -341,13 +364,15 @@ function PromiseSection({ content }) {
   return (
     <section className="bg-beige">
       <div className="flex min-h-[520px] flex-col md:flex-row">
-        <div className="max-h-[600px] overflow-hidden md:w-1/2">
-          <img
-            src={resolveImageUrl(content.image || PROMISE_DEFAULT_IMAGE)}
-            alt="Nine Secrets promise"
-            loading="lazy"
-            className="h-full w-full object-cover object-top"
-          />
+        <div className="max-h-[600px] overflow-hidden bg-blush/40 md:w-1/2">
+          {content.image && (
+            <img
+              src={resolveImageUrl(content.image)}
+              alt="Nine Secrets promise"
+              loading="lazy"
+              className="h-full w-full object-cover object-top"
+            />
+          )}
         </div>
         <div className="flex flex-col justify-center px-10 py-16 md:w-1/2 md:px-20">
           <p className="mb-5 text-[11px] uppercase tracking-[0.16em] text-ink">{content.eyebrow}</p>
@@ -364,19 +389,45 @@ function PromiseSection({ content }) {
   );
 }
 
-function InstaTile({ src, href }) {
+function InstaTile({ src, href, type = 'image' }) {
+  const [muted, setMuted] = useState(true);
+
   const tile = (
-    <div className="group relative aspect-square cursor-pointer overflow-hidden">
-      <img
-        src={src}
-        alt="Nine Secrets lifestyle photo"
-        loading="lazy"
-        className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
-      />
-      <div className="absolute inset-0 bg-blush/[0.13] transition-opacity duration-[400ms] group-hover:opacity-0" />
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-        <Heart size={22} className="fill-cream text-cream" />
-      </div>
+    <div className="group relative aspect-[9/16] cursor-pointer overflow-hidden">
+      {type === 'video' ? (
+        <video
+          src={src}
+          className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
+          autoPlay
+          loop
+          muted={muted}
+          playsInline
+        />
+      ) : (
+        <img
+          src={src}
+          alt="Nine Secrets lifestyle photo"
+          loading="lazy"
+          className="h-full w-full object-cover brightness-[0.92] transition-all duration-[400ms] group-hover:brightness-[1.08]"
+        />
+      )}
+      {type === 'video' ? (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMuted((m) => !m); }}
+          aria-label={muted ? 'Unmute video' : 'Mute video'}
+          className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-cream"
+        >
+          {muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+        </button>
+      ) : (
+        <>
+          <div className="absolute inset-0 bg-blush/[0.13] transition-opacity duration-[400ms] group-hover:opacity-0" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+            <Heart size={22} className="fill-cream text-cream" />
+          </div>
+        </>
+      )}
     </div>
   );
   return href ? <a href={href} target="_blank" rel="noreferrer" aria-label="View post on Instagram">{tile}</a> : tile;
@@ -404,7 +455,16 @@ function InstagramSection({ content }) {
     fetchBeholdPosts(content.beholdUrl).then((p) => p.length && setPosts(p)).catch(() => {});
   }, [content.beholdUrl]);
 
-  const fallbackImages = content.images?.length ? content.images : INSTA_DEFAULT_IMAGES;
+  const manualImages = content.images || [];
+  if (!posts && manualImages.length === 0) return null;
+
+  // Fewer than 6 tiles? Size the grid to match, so tiles fill the row and
+  // grow proportionally instead of leaving a dead empty column behind.
+  const itemCount = posts ? posts.length : manualImages.length;
+  const desktopColsClass = {
+    1: 'md:grid-cols-1', 2: 'md:grid-cols-2', 3: 'md:grid-cols-3',
+    4: 'md:grid-cols-4', 5: 'md:grid-cols-5', 6: 'md:grid-cols-6',
+  }[Math.min(Math.max(itemCount, 1), 6)];
 
   return (
     <section className="bg-cream py-20">
@@ -413,10 +473,13 @@ function InstagramSection({ content }) {
           <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-ink">As Seen On @ninesecrets</p>
           <h2 className="font-heading italic text-ink" style={{ fontSize: 'clamp(26px, 3vw, 38px)' }}>Customer Diaries</h2>
         </div>
-        <div className="mb-12 grid grid-cols-3 gap-3 md:grid-cols-6">
+        <div className={`mb-12 grid grid-cols-3 gap-3 ${desktopColsClass}`}>
           {posts
             ? posts.map((p, i) => <InstaTile key={i} src={p.img} href={p.link} />)
-            : fallbackImages.map((src, i) => <InstaTile key={i} src={resolveImageUrl(src)} />)}
+            : manualImages.map((item, i) => {
+                const media = typeof item === 'string' ? { url: item, type: 'image' } : item;
+                return <InstaTile key={i} src={resolveImageUrl(media.url)} type={media.type} />;
+              })}
         </div>
         <div className="flex justify-center">
           <a
@@ -470,7 +533,10 @@ export default function Home() {
 
   const renderSection = (key) => {
     if (content.sectionsVisible[key] === false) return null;
-    const wrap = (node) => <div key={key} id={`section-${key}`}>{node}</div>;
+    // scroll-margin-top matches the sticky header's height (h-16 = 64px, +16px
+    // breathing room) so any scroll-to-section jump (admin preview, deep link)
+    // doesn't land the heading half-hidden behind the sticky nav bar.
+    const wrap = (node) => <div key={key} id={`section-${key}`} className="scroll-mt-20">{node}</div>;
     switch (key) {
       case 'usp':
         return wrap(<UspStrip items={content.usp} />);

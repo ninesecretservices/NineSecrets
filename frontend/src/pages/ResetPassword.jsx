@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import useStore from '../store/useStore';
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
   const token = params.get('token');
   const navigate = useNavigate();
+  const toast = useStore((s) => s.toast);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +23,7 @@ export default function ResetPassword() {
     setError('');
     try {
       await api.post('/auth/reset-password', { token, password });
-      alert('Password reset! Please sign in with your new password.');
+      toast('Password reset! Please sign in with your new password.');
       navigate('/login');
     } catch (err) {
       setError(err.response?.data?.message || 'Reset failed');

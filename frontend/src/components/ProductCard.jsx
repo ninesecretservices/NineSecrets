@@ -30,13 +30,15 @@ export default function ProductCard({ product, onAddToCart }) {
   return (
     <div className="group w-[280px] flex-shrink-0 cursor-pointer" onClick={goToProduct}>
       <div className="relative overflow-hidden bg-surface">
-        <div className="aspect-square overflow-hidden">
-          <img
-            src={product.img}
-            alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-[600ms] ease-out group-hover:scale-[1.03]"
-          />
+        <div className="aspect-square overflow-hidden bg-beige/40">
+          {product.img && (
+            <img
+              src={product.img}
+              alt={product.name}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-[600ms] ease-out group-hover:scale-[1.03]"
+            />
+          )}
         </div>
         <div className="absolute left-0 top-0">
           <TagBadge label={product.tag} green={product.tag === 'NEW IN'} />

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, ShoppingCart, Building2, Palette, Plus, ArrowRight, CircleCheck, Circle } from 'lucide-react';
 import api from '../../utils/api';
+import useStore from '../../store/useStore';
 
 // Guided setup for first-time (non-technical) users. Each step checks live data.
 const SETUP_STEPS = [
@@ -12,6 +13,67 @@ const SETUP_STEPS = [
   { key: 'fit', endpoint: 'fit', label: 'Add a Fit', desc: 'Just add "Regular" if you don\'t differentiate fits.', to: '/admin/fits' },
   { key: 'product', endpoint: 'product', label: 'Create your first Product', desc: 'Photos, price and stock — then set it to "Visible in store".', to: '/admin/products' },
 ];
+
+// A lightweight in-house bar chart — the store's whole sales-reporting need
+// today is "revenue over the last couple weeks", which doesn't justify
+// pulling in a full charting library.
+const CHART_HEIGHT = 160; // px — matches the bars' own scale below (not a Tailwind h-* class)
+
+function SalesChart({ data }) {
+  const max = Math.max(...data.map((d) => d.revenue), 1);
+  return (
+    <div className="rounded-2xl border border-beige bg-white p-6">
+      <h2 className="mb-4 font-heading text-xl italic text-ink">Sales — Last 14 Days</h2>
+      <div className="flex items-end gap-1.5" style={{ height: CHART_HEIGHT }}>
+        {data.map((d) => (
+          <div key={d.date} className="group relative flex flex-1 flex-col items-center justify-end">
+            <div className="pointer-events-none absolute -top-8 hidden whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-[11px] text-cream group-hover:block">
+              ₹{d.revenue.toLocaleString('en-IN')}
+            </div>
+            {/* Percentage heights need a parent with a resolved (non-auto)
+                height, which a flex child sized by content never has — using
+                an explicit pixel height sidesteps that entirely. */}
+            <div
+              className="w-full rounded-t-md bg-blush transition-colors group-hover:bg-baby-pink"
+              style={{ height: Math.max((d.revenue / max) * CHART_HEIGHT, 4) }}
+            />
+            <span className="mt-1.5 whitespace-nowrap text-[9px] text-mauve">
+              {new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TopProducts({ products }) {
+  return (
+    <div className="rounded-2xl border border-beige bg-white p-6">
+      <h2 className="mb-4 font-heading text-xl italic text-ink">Top Products</h2>
+      {products.length === 0 ? (
+        <p className="py-6 text-center text-sm text-mauve">Not enough sales data yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {products.map((p, i) => (
+            <div key={p._id || i} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-cream text-[11px] font-semibold text-ink">
+                  {i + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-ink">{p.name}</p>
+                  <p className="text-[11px] text-mauve">{p.quantity} sold</p>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-ink">₹{p.revenue.toLocaleString('en-IN')}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GettingStarted() {
   const [done, setDone] = useState(null);
@@ -82,12 +144,15 @@ const STAT_CARDS = [
 ];
 
 export default function Dashboard() {
+  const user = useStore((s) => s.user);
+  const isFulfillmentOnly = user?.role === 'fulfillment';
+  const statCards = isFulfillmentOnly ? STAT_CARDS.filter((c) => c.key === 'orders') : STAT_CARDS;
   const [stats, setStats] = useState({});
   const [salesStats, setSalesStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
 
   useEffect(() => {
-    STAT_CARDS.forEach(async ({ key, endpoint }) => {
+    statCards.forEach(async ({ key, endpoint }) => {
       try {
         const res = await api.post(`/${endpoint}/list`, { page: 1, limit: 1 });
         setStats((s) => ({ ...s, [key]: res.data.data.total ?? (res.data.data.docs || res.data.data).length }));
@@ -118,15 +183,17 @@ export default function Dashboard() {
           <h1 className="font-heading text-3xl italic text-ink">Dashboard</h1>
           <p className="mt-1 text-sm text-mauve-dark">Overview of your store</p>
         </div>
-        <Link
-          to="/admin/products"
-          className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
-        >
-          <Plus size={15} /> Add Product
-        </Link>
+        {!isFulfillmentOnly && (
+          <Link
+            to="/admin/products"
+            className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
+          >
+            <Plus size={15} /> Add Product
+          </Link>
+        )}
       </div>
 
-      <GettingStarted />
+      {!isFulfillmentOnly && <GettingStarted />}
 
       {/* Sales overview */}
       {salesStats && (
@@ -163,9 +230,17 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Sales chart + top products */}
+      {!isFulfillmentOnly && salesStats && (
+        <div className="mb-10 grid grid-cols-1 gap-5 lg:grid-cols-[1.4fr_1fr]">
+          <SalesChart data={salesStats.salesByDay || []} />
+          <TopProducts products={salesStats.topProducts || []} />
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="mb-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {STAT_CARDS.map(({ key, label, icon: Icon, to, accent }) => (
+        {statCards.map(({ key, label, icon: Icon, to, accent }) => (
           <Link key={key} to={to} className="group rounded-2xl border border-beige bg-white p-5 transition-shadow hover:shadow-md">
             <div className="flex items-center justify-between">
               <div className={`flex h-10 w-10 items-center justify-center rounded-full ${accent}`}>

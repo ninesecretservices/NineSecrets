@@ -200,6 +200,34 @@ class AuthController {
     next();
   }
 
+  // Self-service delete. Anonymizes rather than hard-deletes: Orders reference
+  // `user` and admin views populate name/email from it, so removing the User
+  // document outright would corrupt existing order history. Scrubbing PII and
+  // deactivating achieves the same "your account is gone" outcome without
+  // breaking those records.
+  async deleteAccount(req, res, next) {
+    const { password } = req.body;
+    if (!password) throw new ApiError(400, 'Password is required to delete your account');
+
+    const user = await User.findById(req.user.id);
+    if (!user) throw new ApiError(404, 'User not found');
+
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) throw new ApiError(401, 'Incorrect password');
+
+    user.name = 'Deleted User';
+    user.email = `deleted-${user._id}@deleted.ninesecrets.internal`;
+    user.password = crypto.randomBytes(32).toString('hex'); // unusable, unhashed on purpose — login is blocked by isActive anyway
+    user.addresses = [];
+    user.isActive = false;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.locals.responseData = { success: true, message: 'Your account has been deleted' };
+    next();
+  }
+
   async logout(req, res, next) {
     // For JWT without Redis, logout is mostly handled client-side by clearing tokens.
     res.locals.responseData = { success: true, message: 'Logged out successfully' };

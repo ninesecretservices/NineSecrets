@@ -110,6 +110,31 @@ export function Sizes() {
   );
 }
 
+export function DescriptionTemplates() {
+  const columns = [
+    { label: 'Name', key: 'name' },
+    {
+      label: 'Preview',
+      key: 'body',
+      render: (val) => <span className="line-clamp-2 max-w-md text-mauve-dark">{val}</span>,
+    },
+  ];
+
+  return (
+    <MasterData
+      title="Description Templates"
+      description={'Reusable snippets you can drop into any product\'s Description field from the Products page — handy for boilerplate you use across many products (e.g. a standard care note or brand blurb).'}
+      emptyHint="Add your first template — e.g. a standard fabric/fit blurb you reuse across products."
+      endpoint="description-template"
+      columns={columns}
+      formSchema={[
+        { label: 'Name', key: 'name', required: true, placeholder: 'e.g. Standard Cotton Blurb' },
+        { label: 'Description text', key: 'body', type: 'textarea', required: true, placeholder: 'The text that gets inserted into the product description...' },
+      ]}
+    />
+  );
+}
+
 export function Colours() {
   const colourColumns = [
     { label: 'Name', key: 'name' },

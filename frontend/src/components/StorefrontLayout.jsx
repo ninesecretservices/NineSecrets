@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown } from 'lucide-react';
 import useStore from '../store/useStore';
 import CartDrawer from './CartDrawer';
 import Toaster from './Toaster';
+import CookieConsent from './CookieConsent';
 import { getHomepageSettings, getPublicSetting } from '../utils/settings';
 import { HOME_DEFAULTS, normalizeHomepage, activeAnnouncements } from '../utils/homeContent';
 import { applyThemeTokens, clearThemeTokens } from '../utils/themes';
+import { initAnalyticsIfConsented, trackPageView } from '../utils/analytics';
+import { inr } from '../utils/format';
+import { ADMIN_ROLES } from './AdminLayout';
 
 function AnnouncementBar() {
   const [messages, setMessages] = useState(activeAnnouncements(normalizeHomepage(HOME_DEFAULTS)));
@@ -72,11 +76,54 @@ function useCategories() {
   return cats;
 }
 
+// Groups categories under their department (itemList already returns each
+// with `department: {_id, name}` populated) for the mega menu's columns.
+function groupByDepartment(categories) {
+  const groups = new Map();
+  for (const c of categories) {
+    const dept = c.department?.name || 'Other';
+    if (!groups.has(dept)) groups.set(dept, []);
+    groups.get(dept).push(c);
+  }
+  return [...groups.entries()];
+}
+
 const catLink = (c) => `/collection?item=${c._id}&cat=${encodeURIComponent(c.name)}`;
 
 function SearchOverlay({ open, onClose }) {
   const [q, setQ] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!q.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(() => {
+      import('../utils/api').then(({ default: api, resolveImageUrl }) =>
+        api.post('/product/public-list', { page: 1, limit: 5, search: q.trim() })
+          .then((res) => {
+            if (!cancelled) setSuggestions((res.data.data.docs || []).map((p) => ({ ...p, thumbUrl: resolveImageUrl(p.thumbnail) })));
+          })
+          .catch(() => {})
+          .finally(() => !cancelled && setSearching(false))
+      );
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [q]);
+
+  const goToProduct = (product) => {
+    navigate(`/product/${product.slug}`);
+    onClose();
+    setQ('');
+  };
 
   if (!open) return null;
   return (
@@ -111,9 +158,31 @@ function SearchOverlay({ open, onClose }) {
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search bras, nightwear, lounge sets..."
+              placeholder="Search products..."
               className="w-full border border-beige bg-white py-3 pl-11 pr-4 text-sm text-ink outline-none transition-all placeholder:text-mauve focus:border-ink focus:shadow-[0_0_0_3px_rgba(32,24,32,0.06)]"
             />
+            {q.trim() && (suggestions.length > 0 || searching) && (
+              <div className="absolute inset-x-0 top-full z-10 mt-1.5 max-h-80 overflow-y-auto border border-beige bg-white shadow-xl">
+                {searching && suggestions.length === 0 ? (
+                  <p className="px-4 py-3 text-xs text-mauve">Searching...</p>
+                ) : (
+                  suggestions.map((p) => (
+                    <button
+                      type="button"
+                      key={p._id}
+                      onClick={() => goToProduct(p)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-cream"
+                    >
+                      {p.thumbUrl && <img src={p.thumbUrl} alt="" className="h-12 w-9 flex-shrink-0 object-cover" />}
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] text-ink">{p.name}</span>
+                        <span className="text-xs text-mauve">{inr(p.variants?.[0]?.sellingPrice ?? p.variants?.[0]?.mrp ?? 0)}</span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
           <button type="submit" className="shrink-0 bg-ink px-6 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85">
             Search
@@ -128,6 +197,7 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileCatsOpen, setMobileCatsOpen] = useState(false);
   const categories = useCategories();
+  const categoryGroups = groupByDepartment(categories);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
@@ -135,6 +205,7 @@ function Navbar() {
   const user = useStore((s) => s.user);
   const wishlist = useStore((s) => s.wishlist);
   const cart = useStore((s) => s.cart);
+  const fetchWishlist = useStore((s) => s.fetchWishlist);
   const cartCount = (cart?.items || []).reduce((n, i) => n + i.quantity, 0);
 
   useEffect(() => {
@@ -143,6 +214,13 @@ function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // A returning logged-in user's wishlist lives on the server, not localStorage
+  // — load it once per session so PDP heart-fill state and the Wishlist page
+  // aren't stuck showing empty until something happens to trigger a fetch.
+  useEffect(() => {
+    if (user) fetchWishlist();
+  }, [user, fetchWishlist]);
+
   return (
     <>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -150,9 +228,12 @@ function Navbar() {
         className={`sticky top-0 z-50 border-b border-beige bg-surface transition-shadow duration-300 ${scrolled ? 'shadow-[0_2px_20px_rgba(32,24,32,0.04)]' : ''}`}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:px-8">
-          <Link to="/" className="flex flex-col items-start">
-            <span className="text-[17px] font-bold uppercase leading-none tracking-[0.12em] text-ink">Nine Secrets</span>
-            <span className="text-[9px] uppercase tracking-[0.14em] text-mauve">we love your style</span>
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo-icon.png" alt="" className="h-9 w-9" />
+            <span className="flex flex-col items-start">
+              <span className="text-[17px] font-bold uppercase leading-none tracking-[0.12em] text-ink">Nine Secrets</span>
+              <span className="text-[9px] uppercase tracking-[0.14em] text-mauve">we love your style</span>
+            </span>
           </Link>
 
           <div className="hidden items-center gap-7 md:flex">
@@ -162,14 +243,31 @@ function Navbar() {
                   <Link to={l.to} className="flex items-center gap-1 py-5 text-[13px] font-medium text-ink transition-opacity hover:opacity-60">
                     {l.label} <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-hover:rotate-180" />
                   </Link>
-                  <div className="invisible absolute left-1/2 top-full z-50 w-56 -translate-x-1/2 border border-beige bg-surface p-2 opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100">
-                    <Link to="/collection" className="block px-4 py-2.5 text-[13px] font-semibold text-ink hover:bg-cream">All Products</Link>
-                    <Link to="/collection?sort=newest" className="block px-4 py-2.5 text-[13px] text-ink hover:bg-cream">New In</Link>
-                    {categories.map((c) => (
-                      <Link key={c._id} to={catLink(c)} className="block px-4 py-2.5 text-[13px] text-ink hover:bg-cream">
-                        {c.name}
-                      </Link>
-                    ))}
+                  <div className="invisible absolute left-1/2 top-full z-50 flex w-[560px] -translate-x-1/2 border border-beige bg-surface opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100">
+                    <div className="grid flex-grow grid-cols-2 gap-x-8 p-6">
+                      {categoryGroups.length === 0 ? (
+                        <Link to="/collection" className="text-[13px] font-semibold text-ink hover:opacity-60">All Products</Link>
+                      ) : (
+                        categoryGroups.map(([dept, items]) => (
+                          <div key={dept}>
+                            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mauve">{dept}</p>
+                            <div className="flex flex-col gap-2">
+                              {items.map((c) => (
+                                <Link key={c._id} to={catLink(c)} className="text-[13px] text-ink transition-opacity hover:opacity-60">
+                                  {c.name}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex w-48 flex-shrink-0 flex-col justify-center gap-3 border-l border-beige bg-cream p-6">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-mauve">Shop By</p>
+                      <Link to="/collection" className="text-[13px] font-semibold text-ink transition-opacity hover:opacity-60">All Products</Link>
+                      <Link to="/collection?sort=newest" className="text-[13px] text-ink transition-opacity hover:opacity-60">New In</Link>
+                      <Link to="/bestsellers" className="text-[13px] text-ink transition-opacity hover:opacity-60">Bestsellers</Link>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -199,8 +297,8 @@ function Navbar() {
             <button
               onClick={() => {
                 if (!user) navigate('/login');
-                else if (user.role === 'customer') navigate('/account');
-                else navigate('/admin');
+                else if (ADMIN_ROLES.includes(user.role)) navigate('/admin');
+                else navigate('/account');
               }}
               className="hidden transition-opacity hover:opacity-60 md:block"
               aria-label="Account"
@@ -271,7 +369,7 @@ function Navbar() {
               <Heart size={16} strokeWidth={1.5} /> Wishlist {wishlist.length > 0 && `(${wishlist.length})`}
             </Link>
             <Link
-              to={!user ? '/login' : user.role === 'customer' ? '/account' : '/admin'}
+              to={!user ? '/login' : ADMIN_ROLES.includes(user.role) ? '/admin' : '/account'}
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-3 text-sm font-medium text-ink"
             >
@@ -292,6 +390,14 @@ const POLICY_LINKS = [
 ];
 
 function Footer() {
+  const [contact, setContact] = useState({ contactPhone: '', contactEmail: '', contactAddress: '', instagramUrl: '', facebookUrl: '' });
+
+  useEffect(() => {
+    import('../utils/settings.js').then(({ getCommerceSettings }) => getCommerceSettings().then(setContact));
+  }, []);
+
+  const telHref = contact.contactPhone ? `tel:${contact.contactPhone.replace(/[^0-9+]/g, '')}` : null;
+
   return (
     <footer className="bg-gradient-to-br from-blush/50 to-baby-pink/50">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 py-16 md:grid-cols-2 md:px-10">
@@ -314,27 +420,37 @@ function Footer() {
           <p className="mb-4 font-heading text-xl italic text-ink">Contact us</p>
           <div className="flex flex-col gap-3 text-[13px] font-medium text-mauve-dark">
             <p className="font-semibold text-ink">Nine Secrets</p>
-            <p>Phone number: <a href="tel:+919876543210" className="underline underline-offset-2 hover:text-ink">+91 98765 43210</a></p>
-            <p>Email: <a href="mailto:care@ninesecrets.com" className="underline underline-offset-2 hover:text-ink">care@ninesecrets.com</a></p>
-            <p>Address: Nine Secrets, Surat, Gujarat, India</p>
+            {contact.contactPhone && (
+              <p>Phone number: <a href={telHref} className="underline underline-offset-2 hover:text-ink">{contact.contactPhone}</a></p>
+            )}
+            {contact.contactEmail && (
+              <p>Email: <a href={`mailto:${contact.contactEmail}`} className="underline underline-offset-2 hover:text-ink">{contact.contactEmail}</a></p>
+            )}
+            {contact.contactAddress && <p>Address: {contact.contactAddress}</p>}
           </div>
         </div>
       </div>
 
-      <div className="border-t border-ink/10 px-6 py-6 md:px-10">
-        <div className="flex justify-center gap-4">
-          <a href="https://facebook.com/ninesecrets" target="_blank" rel="noreferrer" aria-label="Facebook" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink transition-colors hover:bg-ink hover:text-cream">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4" fill="currentColor">
-              <path d="M279.14 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.43 0 225.36 0c-73.22 0-121.08 44.38-121.08 124.72v70.62H22.89V288h81.39v224h100.17V288z" />
-            </svg>
-          </a>
-          <a href="https://instagram.com/ninesecrets" target="_blank" rel="noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink transition-colors hover:bg-ink hover:text-cream">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
-              <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z" />
-            </svg>
-          </a>
+      {(contact.facebookUrl || contact.instagramUrl) && (
+        <div className="border-t border-ink/10 px-6 py-6 md:px-10">
+          <div className="flex justify-center gap-4">
+            {contact.facebookUrl && (
+              <a href={contact.facebookUrl} target="_blank" rel="noreferrer" aria-label="Facebook" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink transition-colors hover:bg-ink hover:text-cream">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4" fill="currentColor">
+                  <path d="M279.14 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.43 0 225.36 0c-73.22 0-121.08 44.38-121.08 124.72v70.62H22.89V288h81.39v224h100.17V288z" />
+                </svg>
+              </a>
+            )}
+            {contact.instagramUrl && (
+              <a href={contact.instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink transition-colors hover:bg-ink hover:text-cream">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
+                  <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z" />
+                </svg>
+              </a>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="border-t border-ink/10 bg-cream py-3.5">
         <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 text-center text-xs text-mauve">
@@ -375,7 +491,10 @@ function FloatingSocials() {
   if (!waUrl && !igUrl) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[90] flex flex-col gap-3">
+    // bottom-24 on mobile clears the fixed "Add to Cart" buy bar on product
+    // pages (which sits at the very bottom, z-40) — both are position:fixed,
+    // so without this offset they permanently overlap on every mobile PDP.
+    <div className="fixed bottom-24 right-6 z-[90] flex flex-col gap-3 md:bottom-6">
       {waUrl && (
         <a
           href={waUrl}
@@ -410,6 +529,8 @@ function FloatingSocials() {
 }
 
 export default function StorefrontLayout() {
+  const location = useLocation();
+
   // Apply the brand theme (pastel green on cream) to the storefront; restore
   // the default palette when navigating back into the admin panel.
   useEffect(() => {
@@ -424,6 +545,18 @@ export default function StorefrontLayout() {
     };
   }, []);
 
+  // Loads GA/Meta Pixel only if the shopper has accepted cookies (and only if
+  // real IDs are configured) — retries on the banner's accept/reject choice.
+  useEffect(() => {
+    initAnalyticsIfConsented();
+    window.addEventListener('consentchange', initAnalyticsIfConsented);
+    return () => window.removeEventListener('consentchange', initAnalyticsIfConsented);
+  }, []);
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
   return (
     <div className="flex min-h-screen flex-col bg-cream font-body text-ink">
       <AnnouncementBar />
@@ -435,6 +568,7 @@ export default function StorefrontLayout() {
       <FloatingSocials />
       <CartDrawer />
       <Toaster />
+      <CookieConsent />
     </div>
   );
 }

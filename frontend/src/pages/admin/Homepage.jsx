@@ -1,23 +1,20 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Upload, ImageOff, ExternalLink, Plus, Trash2, X, ChevronUp, ChevronDown,
-  Eye, EyeOff, Rocket, History, Save, Monitor, Smartphone, PanelRightClose, PanelRight, CircleCheck,
+  Eye, EyeOff, Rocket, History, Save, Monitor, Smartphone, PanelRightClose, PanelRight, CircleCheck, Video,
 } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
+import { uploadFile, uploadMedia, deleteImage } from '../../utils/upload';
 import { HOME_DEFAULTS, SECTION_LABELS, normalizeHomepage } from '../../utils/homeContent';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import useConfirm from '../../utils/useConfirm';
+import Select from '../../components/admin/Select';
 
 const inputClass =
   'w-full rounded-xl border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink';
 const pillBtn =
   'flex items-center gap-1.5 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-all';
-
-const uploadFile = async (file) => {
-  const fd = new FormData();
-  fd.append('image', file);
-  const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-  return res.data.data.url;
-};
 
 function Card({ title, hint, children }) {
   return (
@@ -30,7 +27,7 @@ function Card({ title, hint, children }) {
   );
 }
 
-function ImagePicker({ value, onChange, defaultLabel = 'Using default image', className = 'h-32 w-24' }) {
+function ImagePicker({ value, onChange, defaultLabel = 'Using default image', className = 'h-32 w-24', folder = 'site' }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex items-center gap-4">
@@ -52,13 +49,21 @@ function ImagePicker({ value, onChange, defaultLabel = 'Using default image', cl
               const f = e.target.files[0];
               if (!f) return;
               setBusy(true);
-              try { onChange(await uploadFile(f)); } catch { /* surfaced elsewhere */ }
+              const previous = value;
+              try {
+                onChange(await uploadFile(f, folder));
+                if (previous) deleteImage(previous);
+              } catch { /* surfaced elsewhere */ }
               setBusy(false);
             }}
           />
         </label>
         {value && (
-          <button type="button" onClick={() => onChange('')} className="w-fit text-xs text-mauve underline">
+          <button
+            type="button"
+            onClick={() => { deleteImage(value); onChange(''); }}
+            className="w-fit text-xs text-mauve underline"
+          >
             Reset to default
           </button>
         )}
@@ -99,11 +104,15 @@ function ProductRowEditor({ title, config, onChange, allProducts }) {
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Products shown</label>
-          <select className={inputClass} value={config.mode} onChange={(e) => onChange({ mode: e.target.value })}>
-            <option value="featured">Auto — Featured products</option>
-            <option value="newest">Auto — Newest products</option>
-            <option value="custom">Hand-picked</option>
-          </select>
+          <Select
+            value={config.mode}
+            onChange={(val) => onChange({ mode: val })}
+            options={[
+              { value: 'featured', label: 'Auto — Featured products' },
+              { value: 'newest', label: 'Auto — Newest products' },
+              { value: 'custom', label: 'Hand-picked' },
+            ]}
+          />
         </div>
         <div>
           <label className={labelClass}>Max count</label>
@@ -184,41 +193,51 @@ function LinkPicker({ value, onChange, categories, products }) {
     <div>
       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Where should it go?</label>
       <div className="flex flex-wrap gap-2">
-        <select value={parsed.type} onChange={(e) => setType(e.target.value)} className={secondary} style={{ flexGrow: 0, minWidth: 170 }}>
-          <option value="all">All products</option>
-          <option value="newest">New arrivals</option>
-          <option value="category">A category</option>
-          <option value="product">A specific product</option>
-          <option value="page">A page</option>
-          <option value="custom">Custom link (advanced)</option>
-        </select>
+        <Select
+          value={parsed.type}
+          onChange={setType}
+          className="flex-shrink-0"
+          triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+          options={[
+            { value: 'all', label: 'All products' },
+            { value: 'newest', label: 'New arrivals' },
+            { value: 'category', label: 'A category' },
+            { value: 'product', label: 'A specific product' },
+            { value: 'page', label: 'A page' },
+            { value: 'custom', label: 'Custom link (advanced)' },
+          ]}
+        />
         {parsed.type === 'category' && (
-          <select
+          <Select
             value={parsed.id || ''}
-            onChange={(e) => {
-              const c = categories.find((x) => x._id === e.target.value);
+            onChange={(val) => {
+              const c = categories.find((x) => x._id === val);
               if (c) onChange(`/collection?item=${c._id}&cat=${encodeURIComponent(c.name)}`);
             }}
-            className={secondary}
-          >
-            {categories.length === 0 && <option value="">No categories yet</option>}
-            {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={categories.map((c) => ({ value: c._id, label: c.name }))}
+            placeholder="No categories yet"
+          />
         )}
         {parsed.type === 'product' && (
-          <select
+          <Select
             value={parsed.slug || ''}
-            onChange={(e) => onChange(`/product/${e.target.value}`)}
-            className={secondary}
-          >
-            {products.length === 0 && <option value="">No products yet</option>}
-            {products.map((p) => <option key={p._id} value={p.slug}>{p.name}</option>)}
-          </select>
+            onChange={(val) => onChange(`/product/${val}`)}
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={products.map((p) => ({ value: p.slug, label: p.name }))}
+            placeholder="No products yet"
+          />
         )}
         {parsed.type === 'page' && (
-          <select value={parsed.page || PAGE_OPTIONS[0].value} onChange={(e) => onChange(e.target.value)} className={secondary}>
-            {PAGE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+          <Select
+            value={parsed.page || PAGE_OPTIONS[0].value}
+            onChange={onChange}
+            className="flex-grow"
+            triggerClassName={`${secondary} flex items-center justify-between gap-2 text-left`}
+            options={PAGE_OPTIONS}
+          />
         )}
         {parsed.type === 'custom' && (
           <input value={parsed.value || ''} onChange={(e) => onChange(e.target.value)} placeholder="/collection?search=..." className={secondary} />
@@ -246,6 +265,9 @@ export default function Homepage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
+
+  useEscapeToClose(showHistory, () => setShowHistory(false));
   const [msg, setMsg] = useState(null);
   const [tab, setTab] = useState(() => {
     const h = window.location.hash.replace('#', '');
@@ -344,12 +366,12 @@ export default function Homepage() {
   };
 
   const saveDraft = () => act(() => api.post('/setting/save-draft', { key: 'homepage', value: content }), 'Draft saved — the live site is unchanged.');
-  const publish = () => {
-    if (!window.confirm('Publish these changes? Shoppers will see them immediately.')) return;
+  const publish = async () => {
+    if (!(await confirm('Publish these changes? Shoppers will see them immediately.', { confirmLabel: 'Publish' }))) return;
     act(() => api.post('/setting/publish', { key: 'homepage', value: content }), 'Published! The storefront is updated.');
   };
-  const revert = (i) => {
-    if (!window.confirm('Restore this version? It goes live immediately (the current version is kept in history).')) return;
+  const revert = async (i) => {
+    if (!(await confirm('Restore this version? It goes live immediately (the current version is kept in history).', { confirmLabel: 'Restore' }))) return;
     setShowHistory(false);
     act(() => api.post('/setting/revert', { key: 'homepage', versionIndex: i }), 'Version restored — it is now live.');
   };
@@ -573,7 +595,7 @@ export default function Homepage() {
       <Card title="Hero" hint="The big banner at the top of the home page.">
         <div className="mb-5">
           <label className={labelClass}>Image (portrait, ~900×1100)</label>
-          <ImagePicker value={content.hero.image} onChange={(v) => patch(['hero'], { image: v })} />
+          <ImagePicker value={content.hero.image} onChange={(v) => patch(['hero'], { image: v })} folder="site/hero" />
         </div>
         <div className="space-y-4">
           <div>
@@ -587,6 +609,10 @@ export default function Homepage() {
           <div>
             <label className={labelClass}>Subtext</label>
             <textarea rows={2} className={inputClass} value={content.hero.subtext} onChange={(e) => patch(['hero'], { subtext: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Trust line (optional — e.g. "Free Shipping · COD Available · Easy Return")</label>
+            <input className={inputClass} placeholder="Leave blank to hide" value={content.hero.features || ''} onChange={(e) => patch(['hero'], { features: e.target.value })} />
           </div>
           <div className="max-w-xs">
             <label className={labelClass}>Button Label</label>
@@ -624,7 +650,10 @@ export default function Homepage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink">Slide {i + 2}</p>
                   <button
                     type="button"
-                    onClick={() => patch(['hero'], { slides: content.hero.slides.filter((_, j) => j !== i) })}
+                    onClick={() => {
+                      if (sl.image) deleteImage(sl.image);
+                      patch(['hero'], { slides: content.hero.slides.filter((_, j) => j !== i) });
+                    }}
                     className="rounded-lg p-1.5 text-red-700 hover:bg-blush/60"
                     aria-label="Remove slide"
                   >
@@ -637,6 +666,7 @@ export default function Homepage() {
                     onChange={(v) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, image: v } : x)) })}
                     className="h-24 w-20"
                     defaultLabel="No image"
+                    folder="site/hero"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -645,6 +675,7 @@ export default function Homepage() {
                 </div>
                 <textarea rows={2} className={`${inputClass} mt-3 font-heading italic`} placeholder="Slide heading (line breaks kept)" value={sl.heading || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, heading: e.target.value } : x)) })} />
                 <textarea rows={2} className={`${inputClass} mt-3`} placeholder="Subtext" value={sl.subtext || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, subtext: e.target.value } : x)) })} />
+                <input className={`${inputClass} mt-3`} placeholder="Trust line (optional)" value={sl.features || ''} onChange={(e) => patch(['hero'], { slides: content.hero.slides.map((x, j) => (j === i ? { ...x, features: e.target.value } : x)) })} />
                 <div className="mt-3 max-w-md">
                   <LinkPicker
                     value={sl.link || '/collection'}
@@ -673,7 +704,7 @@ export default function Homepage() {
               <ScheduleFields value={content.hero.campaign} onChange={(p) => patch(['hero'], { campaign: { ...content.hero.campaign, ...p } })} />
               <div>
                 <label className={labelClass}>Campaign Image (optional — falls back to the main hero image)</label>
-                <ImagePicker value={content.hero.campaign.image} onChange={(v) => patch(['hero'], { campaign: { ...content.hero.campaign, image: v } })} className="h-24 w-20" defaultLabel="Main hero image" />
+                <ImagePicker value={content.hero.campaign.image} onChange={(v) => patch(['hero'], { campaign: { ...content.hero.campaign, image: v } })} className="h-24 w-20" defaultLabel="Main hero image" folder="site/hero" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input className={inputClass} placeholder="Campaign eyebrow" value={content.hero.campaign.eyebrow} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, eyebrow: e.target.value } })} />
@@ -681,6 +712,7 @@ export default function Homepage() {
               </div>
               <textarea rows={2} className={inputClass} placeholder="Campaign heading (line breaks kept)" value={content.hero.campaign.heading} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, heading: e.target.value } })} />
               <textarea rows={2} className={inputClass} placeholder="Campaign subtext" value={content.hero.campaign.subtext} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, subtext: e.target.value } })} />
+              <input className={inputClass} placeholder="Campaign trust line (optional)" value={content.hero.campaign.features || ''} onChange={(e) => patch(['hero'], { campaign: { ...content.hero.campaign, features: e.target.value } })} />
             </div>
           )}
         </div>
@@ -752,7 +784,7 @@ export default function Homepage() {
         <div className="space-y-4">
           {content.categories.map((cat, i) => (
             <div key={i} className="flex flex-wrap items-start gap-4 rounded-xl border border-beige p-3">
-              <ImagePicker value={cat.image} onChange={(v) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, image: v } : x)))} className="h-24 w-20" defaultLabel="No image" />
+              <ImagePicker value={cat.image} onChange={(v) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, image: v } : x)))} className="h-24 w-20" defaultLabel="No image" folder="site/categories" />
               <div className="min-w-[220px] flex-grow space-y-2">
                 <input className={inputClass} placeholder="Title" value={cat.title} onChange={(e) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
                 <input className={inputClass} placeholder="Subtitle (e.g. 32 styles)" value={cat.count} onChange={(e) => patch('categories', content.categories.map((x, j) => (j === i ? { ...x, count: e.target.value } : x)))} />
@@ -763,7 +795,15 @@ export default function Homepage() {
                   products={allProducts}
                 />
               </div>
-              <button onClick={() => patch('categories', content.categories.filter((_, j) => j !== i))} disabled={content.categories.length <= 1} className="rounded-lg p-2 text-red-700 hover:bg-blush/60 disabled:opacity-30" aria-label="Remove tile">
+              <button
+                onClick={() => {
+                  if (cat.image) deleteImage(cat.image);
+                  patch('categories', content.categories.filter((_, j) => j !== i));
+                }}
+                disabled={content.categories.length <= 1}
+                className="rounded-lg p-2 text-red-700 hover:bg-blush/60 disabled:opacity-30"
+                aria-label="Remove tile"
+              >
                 <Trash2 size={15} strokeWidth={1.5} />
               </button>
             </div>
@@ -792,7 +832,7 @@ export default function Homepage() {
       <Card title="Promise Section" hint="The beige brand-story split section.">
         <div className="mb-5">
           <label className={labelClass}>Image</label>
-          <ImagePicker value={content.promise.image} onChange={(v) => patch(['promise'], { image: v })} />
+          <ImagePicker value={content.promise.image} onChange={(v) => patch(['promise'], { image: v })} folder="site/promise" />
         </div>
         <div className="space-y-4">
           <input className={inputClass} placeholder="Eyebrow" value={content.promise.eyebrow} onChange={(e) => patch(['promise'], { eyebrow: e.target.value })} />
@@ -816,29 +856,49 @@ export default function Homepage() {
           <label className={labelClass}>Behold Feed URL (optional — auto-syncs the grid)</label>
           <input className={inputClass} placeholder="https://feeds.behold.so/XXXXXXXXXX" value={content.instagram.beholdUrl || ''} onChange={(e) => patch(['instagram'], { beholdUrl: e.target.value.trim() })} />
         </div>
-        <label className={labelClass}>Manual images (used when no Behold feed)</label>
+        <label className={labelClass}>Manual photos & videos (used when no Behold feed)</label>
+        <p className="mb-3 text-xs text-mauve">Short video clips work here too — a mute icon shows on the tile automatically, matching Instagram Reels-style previews.</p>
         <div className="flex flex-wrap items-center gap-3">
-          {(content.instagram.images || []).map((img, i) => (
-            <div key={i} className="relative">
-              <img src={resolveImageUrl(img)} alt="" className="h-20 w-20 rounded-xl border border-beige object-cover" />
-              <button onClick={() => patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) })} className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream" aria-label="Remove">
-                <X size={11} />
-              </button>
-            </div>
-          ))}
+          {(content.instagram.images || []).map((item, i) => {
+            const media = typeof item === 'string' ? { url: item, type: 'image' } : item;
+            return (
+              <div key={i} className="relative">
+                {media.type === 'video' ? (
+                  <video src={resolveImageUrl(media.url)} className="h-20 w-20 rounded-xl border border-beige object-cover" muted playsInline />
+                ) : (
+                  <img src={resolveImageUrl(media.url)} alt="" className="h-20 w-20 rounded-xl border border-beige object-cover" />
+                )}
+                {media.type === 'video' && (
+                  <span className="absolute bottom-1 left-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink/70 text-cream">
+                    <Video size={9} />
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    deleteImage(media.url);
+                    patch(['instagram'], { images: content.instagram.images.filter((_, j) => j !== i) });
+                  }}
+                  className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
+                  aria-label="Remove"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            );
+          })}
           {(content.instagram.images || []).length < 6 && (
             <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-beige text-mauve transition-colors hover:border-ink hover:text-ink">
               <Plus size={16} />
               <span className="text-[9px] uppercase">Add</span>
               <input
-                type="file" accept="image/*" multiple className="hidden"
+                type="file" accept="image/*,video/*" multiple className="hidden"
                 onChange={async (e) => {
                   const files = [...e.target.files];
-                  const urls = [];
+                  const uploaded = [];
                   for (const f of files) {
-                    try { urls.push(await uploadFile(f)); } catch { /* skip failed */ }
+                    try { uploaded.push(await uploadMedia(f, 'site/instagram')); } catch { /* skip failed */ }
                   }
-                  patch(['instagram'], { images: [...(content.instagram.images || []), ...urls].slice(0, 6) });
+                  patch(['instagram'], { images: [...(content.instagram.images || []), ...uploaded].slice(0, 6) });
                 }}
               />
             </label>
@@ -918,6 +978,8 @@ export default function Homepage() {
         </div>
       )}
       </div>
+
+      {ConfirmDialog}
     </div>
   );
 }

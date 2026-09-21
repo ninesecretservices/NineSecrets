@@ -8,9 +8,17 @@ const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em
 const DEFAULTS = {
   freeShippingThreshold: 599,
   shippingFee: 50,
+  standardShippingDays: '3-5 business days',
+  expressShippingEnabled: false,
+  expressShippingFee: 150,
+  expressShippingDays: '1-2 business days',
   codEnabled: true,
   lowStockThreshold: 5,
   maxOrderQty: 10,
+  contactPhone: '',
+  contactEmail: '',
+  contactAddress: '',
+  facebookUrl: '',
 };
 
 export default function StoreSettings() {
@@ -66,11 +74,37 @@ export default function StoreSettings() {
             <p className="mt-1 text-[11px] text-mauve">Also shown in the cart's free-shipping progress bar.</p>
           </div>
           <div>
-            <label className={labelClass}>Shipping Fee Below That (₹)</label>
+            <label className={labelClass}>Standard Shipping Fee Below That (₹)</label>
             <input type="number" min="0" className={inputClass} value={cfg.shippingFee}
               onChange={(e) => setCfg({ ...cfg, shippingFee: Number(e.target.value) || 0 })} />
           </div>
+          <div>
+            <label className={labelClass}>Standard Delivery Estimate</label>
+            <input className={inputClass} value={cfg.standardShippingDays}
+              onChange={(e) => setCfg({ ...cfg, standardShippingDays: e.target.value })} />
+          </div>
         </div>
+
+        <label className="mb-4 flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" className="h-4 w-4 accent-[#201820]" checked={cfg.expressShippingEnabled}
+            onChange={(e) => setCfg({ ...cfg, expressShippingEnabled: e.target.checked })} />
+          Offer Express Shipping at checkout
+        </label>
+        {cfg.expressShippingEnabled && (
+          <div className="mb-6 grid grid-cols-2 gap-4 rounded-xl bg-cream p-4">
+            <div>
+              <label className={labelClass}>Express Shipping Fee (₹)</label>
+              <input type="number" min="0" className={inputClass} value={cfg.expressShippingFee}
+                onChange={(e) => setCfg({ ...cfg, expressShippingFee: Number(e.target.value) || 0 })} />
+              <p className="mt-1 text-[11px] text-mauve">Always charged — never covered by the free-shipping threshold above.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Express Delivery Estimate</label>
+              <input className={inputClass} value={cfg.expressShippingDays}
+                onChange={(e) => setCfg({ ...cfg, expressShippingDays: e.target.value })} />
+            </div>
+          </div>
+        )}
 
         <h2 className="mb-4 font-heading text-lg italic text-ink">Payments</h2>
         <label className="mb-6 flex items-center gap-2 text-sm text-ink">
@@ -94,6 +128,29 @@ export default function StoreSettings() {
           </div>
         </div>
 
+        <h2 className="mb-4 font-heading text-lg italic text-ink">Contact Details</h2>
+        <p className="mb-4 text-[11px] text-mauve">Shown in the site footer, legal pages, and policy text — one place to keep it accurate everywhere.</p>
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Support Phone</label>
+            <input type="text" className={inputClass} placeholder="e.g. +91 98765 43210"
+              value={cfg.contactPhone || ''}
+              onChange={(e) => setCfg({ ...cfg, contactPhone: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Support Email</label>
+            <input type="email" className={inputClass} placeholder="e.g. care@ninesecrets.com"
+              value={cfg.contactEmail || ''}
+              onChange={(e) => setCfg({ ...cfg, contactEmail: e.target.value })} />
+          </div>
+        </div>
+        <div className="mb-6">
+          <label className={labelClass}>Business Address</label>
+          <input type="text" className={inputClass} placeholder="e.g. Nine Secrets, Surat, Gujarat, India"
+            value={cfg.contactAddress || ''}
+            onChange={(e) => setCfg({ ...cfg, contactAddress: e.target.value })} />
+        </div>
+
         <h2 className="mb-4 font-heading text-lg italic text-ink">Social Links</h2>
         <p className="mb-4 text-[11px] text-mauve">These appear as floating icons on the storefront. Leave blank to hide an icon.</p>
         <div className="mb-6 grid grid-cols-2 gap-4">
@@ -109,6 +166,12 @@ export default function StoreSettings() {
             <input type="url" className={inputClass} placeholder="e.g. https://instagram.com/ninesecrets"
               value={cfg.instagramUrl || ''}
               onChange={(e) => setCfg({ ...cfg, instagramUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Facebook Page URL</label>
+            <input type="url" className={inputClass} placeholder="e.g. https://facebook.com/ninesecrets"
+              value={cfg.facebookUrl || ''}
+              onChange={(e) => setCfg({ ...cfg, facebookUrl: e.target.value })} />
           </div>
         </div>
 

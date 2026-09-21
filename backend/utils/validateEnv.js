@@ -37,6 +37,12 @@ export function validateEnv(isProd) {
   if (!process.env.SMTP_HOST) {
     warnings.push('SMTP_HOST is not set — order-confirmation and password-reset emails will not actually send (dev fallback just logs them).');
   }
+  if (!process.env.GEMINI_API_KEY) {
+    warnings.push('GEMINI_API_KEY is not set — the admin "Generate with AI" product description button will not work.');
+  }
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    warnings.push('RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are not set — checkout will only offer Cash on Delivery.');
+  }
   for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
     const value = (process.env[key] || '').toLowerCase();
     if (value.length < 32 || WEAK_SECRET_HINTS.some((hint) => value.includes(hint))) {

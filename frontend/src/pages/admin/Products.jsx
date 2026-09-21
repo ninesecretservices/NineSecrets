@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Pencil, Trash2, Plus, X, Upload, ImageOff } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, Upload, ImageOff, Sparkles, Copy, Percent } from 'lucide-react';
 import api, { resolveImageUrl } from '../../utils/api';
+import { uploadFile, deleteImage, slugifyFolder } from '../../utils/upload';
 import { inr } from '../../utils/format';
+import useEscapeToClose from '../../utils/useEscapeToClose';
+import useSpaceToAdd from '../../utils/useSpaceToAdd';
+import useConfirm from '../../utils/useConfirm';
+import usePrompt from '../../utils/usePrompt';
+import Select from '../../components/admin/Select';
+import useStore from '../../store/useStore';
 
 const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '' };
 
@@ -81,16 +88,23 @@ function QuickAdd({ label, endpoint, extraFields = [], departments = [], onCreat
           placeholder={`${label} name`}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), create())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); create(); }
+            if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+          }}
         />
         {extraFields.includes('hexCode') && (
           <input type="color" value={hex} onChange={(e) => setHex(e.target.value)} className="h-9 w-12 cursor-pointer rounded-lg border border-beige bg-white p-0.5" />
         )}
         {extraFields.includes('department') && (
-          <select value={dept} onChange={(e) => setDept(e.target.value)} className="rounded-lg border border-beige bg-white px-3 py-2 text-sm text-ink outline-none">
-            <option value="">Department...</option>
-            {departments.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-          </select>
+          <Select
+            value={dept}
+            onChange={setDept}
+            options={departments.map((d) => ({ value: d._id, label: d.name }))}
+            placeholder="Department..."
+            className="w-44"
+            triggerClassName="flex w-full items-center justify-between gap-2 rounded-lg border border-beige bg-white px-3 py-2 text-left text-sm text-ink outline-none"
+          />
         )}
         <button type="button" onClick={create} disabled={busy} className="rounded-full bg-ink px-4 py-2 text-[11px] font-semibold uppercase text-cream disabled:opacity-50">
           {busy ? '...' : 'Add'}
@@ -116,8 +130,19 @@ export default function Products() {
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkPriceOpen, setBulkPriceOpen] = useState(false);
+  const [bulkPriceMode, setBulkPriceMode] = useState('percent');
+  const [bulkPriceValue, setBulkPriceValue] = useState('');
+  const [bulkPriceSaving, setBulkPriceSaving] = useState(false);
+  const toast = useStore((s) => s.toast);
+  const { confirm, ConfirmDialog } = useConfirm();
+  const { prompt, PromptDialog } = usePrompt();
 
-  const [master, setMaster] = useState({ departments: [], items: [], designs: [], fabrics: [], colours: [], sizes: [], fits: [] });
+  useEscapeToClose(isModalOpen, () => setIsModalOpen(false));
+
+  const [master, setMaster] = useState({ departments: [], items: [], designs: [], fabrics: [], colours: [], sizes: [], fits: [], descriptionTemplates: [] });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -125,6 +150,7 @@ export default function Products() {
     try {
       const res = await api.post('/product/list', { page: 1, limit: 100 });
       setData(res.data.data.docs || res.data.data);
+      setSelected(new Set());
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load products');
     }
@@ -134,7 +160,7 @@ export default function Products() {
   const fetchMasterData = useCallback(async () => {
     const endpoints = {
       departments: 'department', items: 'item', designs: 'design', fabrics: 'fabric',
-      colours: 'colour', sizes: 'size', fits: 'fit',
+      colours: 'colour', sizes: 'size', fits: 'fit', descriptionTemplates: 'description-template',
     };
     const entries = await Promise.all(
       Object.entries(endpoints).map(async ([key, ep]) => {
@@ -208,20 +234,22 @@ export default function Products() {
     );
   };
 
-  const uploadFile = async (file) => {
-    const fd = new FormData();
-    fd.append('image', file);
-    const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-    return res.data.data.url;
+  // Groups product photos by department in Cloudinary, e.g. products/lounge-sets.
+  // Falls back to the flat default folder if no department is picked yet.
+  const productImageFolder = () => {
+    const dept = master.departments.find((d) => d._id === formData.department);
+    return dept ? `products/${slugifyFolder(dept.name)}` : undefined;
   };
 
   const handleUpload = async (file) => {
     if (!file) return;
     setUploading(true);
     setFormError('');
+    const previous = formData.thumbnail;
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, productImageFolder());
       setFormData((f) => ({ ...f, thumbnail: url }));
+      if (previous) deleteImage(previous);
     } catch (err) {
       setFormError(err.response?.data?.message || 'Image upload failed');
     }
@@ -233,9 +261,10 @@ export default function Products() {
     setUploading(true);
     setFormError('');
     try {
+      const folder = productImageFolder();
       const urls = [];
       for (const file of files) {
-        urls.push(await uploadFile(file));
+        urls.push(await uploadFile(file, folder));
       }
       setFormData((f) => ({ ...f, images: [...(f.images || []), ...urls] }));
     } catch (err) {
@@ -244,9 +273,58 @@ export default function Products() {
     setUploading(false);
   };
 
+  // Shared by "Insert template" and "Generate with AI" — never silently
+  // discards text the user already typed.
+  const applyDescriptionText = async (newText) => {
+    const existing = (formData.description || '').trim();
+    if (!existing) {
+      setFormData((f) => ({ ...f, description: newText }));
+      return;
+    }
+    const replace = await confirm('Replace the current description with the new text?', {
+      confirmLabel: 'Replace',
+      cancelLabel: 'Append Instead',
+    });
+    setFormData((f) => ({
+      ...f,
+      description: replace ? newText : `${(f.description || '').trim()}\n\n${newText}`,
+    }));
+  };
+
+  const handleAiDescription = async () => {
+    let imageUrl = formData.thumbnail;
+    if (!imageUrl) {
+      imageUrl = await prompt('No photo uploaded yet — paste an image URL to generate a description from:', {
+        placeholder: 'https://...',
+        confirmLabel: 'Use This Image',
+      });
+      if (!imageUrl) return;
+    }
+    setAiGenerating(true);
+    setFormError('');
+    try {
+      const context = {
+        name: formData.name,
+        department: master.departments.find((d) => d._id === formData.department)?.name,
+        item: master.items.find((i) => i._id === formData.item)?.name,
+        fabric: master.fabrics.find((f) => f._id === formData.fabric)?.name,
+      };
+      const res = await api.post('/product/ai-description', { imageUrl: resolveImageUrl(imageUrl), context });
+      applyDescriptionText(res.data.data.description);
+    } catch (err) {
+      setFormError(err.response?.data?.message || 'AI description generation failed');
+    }
+    setAiGenerating(false);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setFormError('');
+
+    if (!formData.department || !formData.item) {
+      setFormError('Department and Category are both required.');
+      return;
+    }
 
     const cleanVariants = variants
       .filter((v) => v.colour && v.size && v.fit)
@@ -283,13 +361,87 @@ export default function Products() {
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this product from the store? Past orders keep their records.')) return;
+  // Custom modal instead of window.confirm — matches the rest of this admin's
+  // styled dialogs, and avoids the native confirm's blocking/jarring popup.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  useEscapeToClose(!!deleteTarget, () => setDeleteTarget(null));
+  useSpaceToAdd(() => handleOpenModal(), isModalOpen || !!deleteTarget);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
     try {
-      await api.post('/product/delete', { id });
+      await api.post('/product/delete', { id: deleteTarget._id });
+      setDeleteTarget(null);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed');
+      setDeleteError(err.response?.data?.message || 'Delete failed');
+    }
+    setDeleting(false);
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = data.length > 0 && selected.size === data.length;
+  const toggleSelectAll = () => {
+    setSelected(allSelected ? new Set() : new Set(data.map((r) => r._id)));
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (!(await confirm(
+      `Remove ${count} selected product${count === 1 ? '' : 's'} from the store? Past orders that include them keep their records.`,
+      { confirmLabel: `Remove ${count}`, danger: true }
+    ))) return;
+    const ids = [...selected];
+    const results = await Promise.allSettled(ids.map((id) => api.post('/product/delete', { id })));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      toast(`Removed ${ids.length - failed} of ${ids.length} — ${failed} failed`, 'error');
+    } else {
+      toast(`Removed ${ids.length} product${ids.length === 1 ? '' : 's'}`);
+    }
+    fetchData();
+  };
+
+  const handleBulkPriceUpdate = async () => {
+    const value = Number(bulkPriceValue);
+    if (!bulkPriceValue || Number.isNaN(value)) {
+      toast('Enter a number', 'error');
+      return;
+    }
+    setBulkPriceSaving(true);
+    try {
+      const res = await api.post('/product/bulk-price-update', { ids: [...selected], mode: bulkPriceMode, value });
+      toast(res.data.message);
+      setBulkPriceOpen(false);
+      setBulkPriceValue('');
+      setSelected(new Set());
+      fetchData();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Bulk price update failed', 'error');
+    }
+    setBulkPriceSaving(false);
+  };
+
+  const handleDuplicate = async (row) => {
+    try {
+      await api.post('/product/duplicate', { id: row._id });
+      toast(`Duplicated "${row.name}" as a draft`);
+      fetchData();
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not duplicate product', 'error');
     }
   };
 
@@ -312,12 +464,30 @@ export default function Products() {
             Everything you sell. A product needs at least one option row (colour + size) with a price and stock before customers can buy it.
           </p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex flex-shrink-0 items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
-        >
-          <Plus size={15} /> Add Product
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {selected.size > 0 && (
+            <>
+              <button
+                onClick={() => setBulkPriceOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream"
+              >
+                <Percent size={15} /> Adjust Prices ({selected.size})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 rounded-full border border-red-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-red-700 transition-colors hover:bg-blush/60"
+              >
+                <Trash2 size={15} /> Delete Selected ({selected.size})
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85"
+          >
+            <Plus size={15} /> Add Product
+          </button>
+        </div>
       </div>
 
       {error && <div className="mb-4 rounded-xl bg-blush px-4 py-3 text-sm text-ink">{error}</div>}
@@ -326,6 +496,17 @@ export default function Products() {
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-beige text-[11px] uppercase tracking-[0.1em] text-mauve">
+              <th className="w-9 py-2.5 pr-2">
+                {data.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all"
+                    className="h-4 w-4 cursor-pointer accent-ink"
+                  />
+                )}
+              </th>
               <th className="py-2.5 pr-3">Product</th>
               <th className="py-2.5 pr-3">Department</th>
               <th className="py-2.5 pr-3">Options</th>
@@ -337,12 +518,21 @@ export default function Products() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="py-8 text-center text-mauve">Loading...</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-mauve">Loading...</td></tr>
             ) : data.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-mauve">No products yet — click "Add Product" and follow the steps.</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-mauve">No products yet — click "Add Product" and follow the steps.</td></tr>
             ) : (
               data.map((row) => (
-                <tr key={row._id} className="border-b border-beige/60 transition-colors hover:bg-cream/50">
+                <tr key={row._id} className={`border-b border-beige/60 transition-colors hover:bg-cream/50 ${selected.has(row._id) ? 'bg-cream/70' : ''}`}>
+                  <td className="py-3 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row._id)}
+                      onChange={() => toggleSelect(row._id)}
+                      aria-label="Select row"
+                      className="h-4 w-4 cursor-pointer accent-ink"
+                    />
+                  </td>
                   <td className="py-3 pr-3">
                     <div className="flex items-center gap-3">
                       {row.thumbnail ? (
@@ -374,7 +564,10 @@ export default function Products() {
                       <button onClick={() => handleOpenModal(row)} className="rounded-lg p-2 text-ink transition-colors hover:bg-beige/60" aria-label="Edit">
                         <Pencil size={16} strokeWidth={1.5} />
                       </button>
-                      <button onClick={() => handleDelete(row._id)} className="rounded-lg p-2 text-red-700 transition-colors hover:bg-blush/60" aria-label="Delete">
+                      <button onClick={() => handleDuplicate(row)} className="rounded-lg p-2 text-ink transition-colors hover:bg-beige/60" aria-label="Duplicate">
+                        <Copy size={16} strokeWidth={1.5} />
+                      </button>
+                      <button onClick={() => { setDeleteError(''); setDeleteTarget(row); }} className="rounded-lg p-2 text-red-700 transition-colors hover:bg-blush/60" aria-label="Delete">
                         <Trash2 size={16} strokeWidth={1.5} />
                       </button>
                     </div>
@@ -406,6 +599,7 @@ export default function Products() {
                   <label className={labelClass}>Product Name</label>
                   <input
                     type="text"
+                    autoFocus
                     required
                     placeholder="e.g. Isla Padded Everyday Bra"
                     value={formData.name || ''}
@@ -414,7 +608,32 @@ export default function Products() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className={labelClass}>Short Description</label>
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <label className={`${labelClass} mb-0`}>Short Description</label>
+                    <div className="flex items-center gap-2">
+                      {master.descriptionTemplates.length > 0 && (
+                        <Select
+                          value=""
+                          onChange={(val) => {
+                            const tpl = master.descriptionTemplates.find((t) => t._id === val);
+                            if (tpl) applyDescriptionText(tpl.body);
+                          }}
+                          options={master.descriptionTemplates.map((t) => ({ value: t._id, label: t.name }))}
+                          placeholder="Insert template..."
+                          className="w-48"
+                          triggerClassName="flex w-full items-center justify-between gap-2 rounded-full border border-beige bg-white px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-ink outline-none transition-colors hover:bg-cream"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleAiDescription}
+                        disabled={aiGenerating}
+                        className="flex items-center gap-1.5 rounded-full border border-beige px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+                      >
+                        <Sparkles size={13} /> {aiGenerating ? 'Writing...' : 'Generate with AI'}
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     rows={2}
                     placeholder="One friendly line shown under the product name, e.g. Breathable cotton, invisible under any top"
@@ -422,21 +641,28 @@ export default function Products() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className={inputClass}
                   />
+                  <p className="mt-1 text-[11px] text-mauve">
+                    "Generate with AI" uses the uploaded main photo (or a pasted image URL if none is uploaded yet) to draft a description — always review before saving.
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Department</label>
-                  <select required value={formData.department || ''} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className={inputClass}>
-                    <option value="">Choose...</option>
-                    {master.departments.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                  </select>
+                  <Select
+                    required
+                    value={formData.department || ''}
+                    onChange={(val) => setFormData({ ...formData, department: val })}
+                    options={master.departments.map((o) => ({ value: o._id, label: o.name }))}
+                  />
                   <QuickAdd label="Department" endpoint="department" onCreated={(doc) => { fetchMasterData(); setFormData((f) => ({ ...f, department: doc._id })); }} />
                 </div>
                 <div>
                   <label className={labelClass}>Category</label>
-                  <select required value={formData.item || ''} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className={inputClass}>
-                    <option value="">Choose...</option>
-                    {master.items.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                  </select>
+                  <Select
+                    required
+                    value={formData.item || ''}
+                    onChange={(val) => setFormData({ ...formData, item: val })}
+                    options={master.items.map((o) => ({ value: o._id, label: o.name }))}
+                  />
                   <QuickAdd label="Category" endpoint="item" extraFields={['department']} departments={master.departments} onCreated={(doc) => { fetchMasterData(); setFormData((f) => ({ ...f, item: doc._id })); }} />
                 </div>
               </div>
@@ -459,7 +685,11 @@ export default function Products() {
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e.target.files[0])} />
                   </label>
                   {formData.thumbnail && (
-                    <button type="button" onClick={() => setFormData({ ...formData, thumbnail: '' })} className="text-xs text-mauve underline">
+                    <button
+                      type="button"
+                      onClick={() => { deleteImage(formData.thumbnail); setFormData({ ...formData, thumbnail: '' }); }}
+                      className="text-xs text-mauve underline"
+                    >
                       Remove
                     </button>
                   )}
@@ -473,7 +703,10 @@ export default function Products() {
                       <img src={resolveImageUrl(img)} alt="" className="h-20 w-16 rounded-lg border border-beige object-cover" />
                       <button
                         type="button"
-                        onClick={() => setFormData((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
+                        onClick={() => {
+                          deleteImage(img);
+                          setFormData((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }));
+                        }}
                         className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-cream"
                         aria-label="Remove image"
                       >
@@ -510,24 +743,27 @@ export default function Products() {
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Colour</label>
-                        <select value={v.colour} onChange={(e) => setVariant(idx, 'colour', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.colours.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.colour}
+                          onChange={(val) => setVariant(idx, 'colour', val)}
+                          options={master.colours.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Size</label>
-                        <select value={v.size} onChange={(e) => setVariant(idx, 'size', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.sizes.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.size}
+                          onChange={(val) => setVariant(idx, 'size', val)}
+                          options={master.sizes.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Fit</label>
-                        <select value={v.fit} onChange={(e) => setVariant(idx, 'fit', e.target.value)} className={inputClass} required>
-                          <option value="">Choose...</option>
-                          {master.fits.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                        </select>
+                        <Select
+                          value={v.fit}
+                          onChange={(val) => setVariant(idx, 'fit', val)}
+                          options={master.fits.map((o) => ({ value: o._id, label: o.name }))}
+                        />
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-[1fr_1fr_80px_100px_100px_36px] items-end gap-3">
@@ -541,7 +777,7 @@ export default function Products() {
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">In stock</label>
-                        <input type="number" min="0" value={v.stock} onChange={(e) => setVariant(idx, 'stock', e.target.value)} className={inputClass} required />
+                        <input type="number" min="0" value={v.stock} onChange={(e) => setVariant(idx, 'stock', e.target.value)} onFocus={(e) => e.target.select()} className={inputClass} required />
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Full price ₹</label>
@@ -576,9 +812,11 @@ export default function Products() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Status</label>
-                  <select value={formData.status || 'active'} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={inputClass}>
-                    {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
+                  <Select
+                    value={formData.status || 'active'}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={STATUS_OPTIONS}
+                  />
                 </div>
                 <div className="flex items-end pb-1">
                   <label className="flex items-center gap-2 text-sm text-ink">
@@ -601,17 +839,21 @@ export default function Products() {
                 <div className="mt-3 grid grid-cols-3 gap-4 rounded-xl bg-cream p-4">
                   <div>
                     <label className={labelClass}>Design</label>
-                    <select value={formData.design || ''} onChange={(e) => setFormData({ ...formData, design: e.target.value })} className={inputClass}>
-                      <option value="">(None)</option>
-                      {master.designs.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                    </select>
+                    <Select
+                      value={formData.design || ''}
+                      onChange={(val) => setFormData({ ...formData, design: val })}
+                      options={master.designs.map((o) => ({ value: o._id, label: o.name }))}
+                      placeholder="(None)"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Fabric</label>
-                    <select value={formData.fabric || ''} onChange={(e) => setFormData({ ...formData, fabric: e.target.value })} className={inputClass}>
-                      <option value="">(None)</option>
-                      {master.fabrics.map((o) => <option key={o._id} value={o._id}>{o.name}</option>)}
-                    </select>
+                    <Select
+                      value={formData.fabric || ''}
+                      onChange={(val) => setFormData({ ...formData, fabric: val })}
+                      options={master.fabrics.map((o) => ({ value: o._id, label: o.name }))}
+                      placeholder="(None)"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Tax %</label>
@@ -640,6 +882,92 @@ export default function Products() {
           </div>
         </div>
       )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-heading text-lg italic text-ink">Remove this product?</h3>
+            <p className="mb-5 text-sm text-mauve-dark">
+              "{deleteTarget.name}" will no longer show in the store. Past orders that include it keep their records.
+            </p>
+            {deleteError && <div className="mb-4 rounded-xl bg-blush px-4 py-3 text-sm text-ink">{deleteError}</div>}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="rounded-full bg-red-700 px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                {deleting ? 'Removing...' : 'Remove Product'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkPriceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-heading text-lg italic text-ink">Adjust Prices</h3>
+            <p className="mb-5 text-sm text-mauve-dark">
+              Applies to every option (colour/size) of the {selected.size} selected product{selected.size === 1 ? '' : 's'} — each keeps its price relative to the others.
+            </p>
+            <div className="mb-4">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">Adjustment Type</label>
+              <Select
+                value={bulkPriceMode}
+                onChange={setBulkPriceMode}
+                options={[
+                  { value: 'percent', label: 'Percentage (%)' },
+                  { value: 'fixed', label: 'Flat Amount (₹)' },
+                ]}
+              />
+            </div>
+            <div className="mb-5">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-ink">
+                Value {bulkPriceMode === 'percent' ? '(e.g. 10 for +10%, -10 for -10%)' : '(e.g. 50 or -50)'}
+              </label>
+              <input
+                type="number"
+                autoFocus
+                value={bulkPriceValue}
+                onChange={(e) => setBulkPriceValue(e.target.value)}
+                className="w-full rounded-lg border border-beige px-3 py-2 text-sm text-ink outline-none focus:border-ink"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setBulkPriceOpen(false)}
+                disabled={bulkPriceSaving}
+                className="rounded-full border border-beige px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink transition-colors hover:bg-cream disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkPriceUpdate}
+                disabled={bulkPriceSaving}
+                className="rounded-full bg-ink px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream transition-opacity hover:opacity-85 disabled:opacity-50"
+              >
+                {bulkPriceSaving ? 'Applying...' : 'Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ConfirmDialog}
+      {PromptDialog}
     </div>
   );
 }

@@ -5,4 +5,4 @@ Disallow: /account
 Disallow: /checkout
 Disallow: /cart
 
-Sitemap: /sitemap.xml
+Sitemap: https://www.ninesecrets.in/sitemap.xml

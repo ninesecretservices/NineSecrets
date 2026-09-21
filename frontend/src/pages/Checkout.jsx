@@ -648,7 +648,7 @@ export default function Checkout() {
               <span>{inr(estimatedTotal)}</span>
             </div>
             <p className="text-[11px] text-mauve">
-              Taxes (if applicable) are calculated at order confirmation.
+              Prices are inclusive of applicable taxes.
             </p>
           </div>
 

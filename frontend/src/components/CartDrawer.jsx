@@ -127,7 +127,7 @@ export default function CartDrawer() {
             >
               View Full Bag
             </Link>
-            <p className="mt-3 text-center text-[11px] text-mauve">Taxes calculated at checkout · Easy 7-day exchange</p>
+            <p className="mt-3 text-center text-[11px] text-mauve">Prices include applicable taxes · Easy 7-day exchange</p>
           </div>
         )}
       </div>

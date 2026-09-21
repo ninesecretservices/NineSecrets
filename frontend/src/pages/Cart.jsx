@@ -97,7 +97,7 @@ export default function Cart() {
               <div className="flex justify-between border-t border-beige pt-3 text-base font-bold text-ink">
                 <span>Estimated Total</span><span>{inr(subtotal + shipping)}</span>
               </div>
-              <p className="text-[11px] text-mauve">Taxes and coupons applied at checkout.</p>
+              <p className="text-[11px] text-mauve">Prices include applicable taxes. Coupons applied at checkout.</p>
             </div>
             <button
               onClick={() => navigate(user ? '/checkout' : '/login')}

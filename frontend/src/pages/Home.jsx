@@ -498,7 +498,7 @@ function InstagramSection({ content }) {
 }
 
 export default function Home() {
-  useTitle('', 'Premium innerwear for every woman. Crafted with care, priced with honesty.');
+  useTitle('', 'Premium nightwear and loungewear for women. Crafted with care, priced with honesty.');
   const [content, setContent] = useState(normalizeHomepage(HOME_DEFAULTS));
   // Once live editor content has arrived, the (slower) server fetch must never overwrite it.
   const gotLiveContent = useRef(false);

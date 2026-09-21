@@ -159,11 +159,9 @@ export function ReturnPolicy() {
         </p>
       </div>
       <div>
-        <H>Hygiene exceptions</H>
+        <H>Final-sale items</H>
         <p>
-          For hygiene reasons, briefs and panties can only be exchanged if the
-          hygiene seal is intact. Products marked "final sale" cannot be
-          returned unless defective.
+          Products marked "final sale" cannot be returned unless defective.
         </p>
       </div>
       <div>
@@ -252,6 +250,11 @@ export function ShippingPolicy() {
 
 export function TermsOfService() {
   useTitle('Terms of Service');
+  const [commerce, setCommerce] = useState({ jurisdictionCity: '' });
+  useEffect(() => { getCommerceSettings().then(setCommerce); }, []);
+  const jurisdiction = commerce.jurisdictionCity
+    ? `courts in ${commerce.jurisdictionCity}`
+    : 'the competent courts where Nine Secrets carries on business';
   return (
     <LegalShell title="Terms of Service" updated="July 2026">
       <div>
@@ -309,54 +312,10 @@ export function TermsOfService() {
       <div>
         <H>Governing law</H>
         <p>
-          These terms are governed by the laws of India, with courts in Surat,
-          Gujarat having jurisdiction over any dispute.
+          These terms are governed by the laws of India, with {jurisdiction}{' '}
+          having jurisdiction over any dispute.
         </p>
       </div>
     </LegalShell>
-  );
-}
-
-export function Blog() {
-  useTitle('Blog');
-  return (
-    <div className="min-h-[60vh] bg-cream font-body text-ink">
-      <div className="bg-beige py-12">
-        <div className="mx-auto max-w-4xl px-6 md:px-10">
-          <h1
-            className="font-heading italic text-ink"
-            style={{ fontSize: 'clamp(30px, 3.5vw, 44px)' }}
-          >
-            The Journal
-          </h1>
-          <p className="mt-2 text-sm text-mauve-dark">
-            Fit advice, fabric stories, and life in Nine Secrets.
-          </p>
-        </div>
-      </div>
-      <div className="mx-auto max-w-4xl px-6 py-14 md:px-10">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {[
-            'How to find your true bra size',
-            'Why we obsess over fabrics',
-            'Caring for delicates: a 2-minute guide',
-          ].map((t) => (
-            <div key={t} className="border border-beige bg-surface p-6">
-              <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-mauve">
-                Coming soon
-              </p>
-              <h2 className="font-heading text-lg italic text-ink">{t}</h2>
-            </div>
-          ))}
-        </div>
-        <p className="mt-10 text-center text-sm text-mauve">
-          Our first stories are being written. Meanwhile, the{' '}
-          <a href="/fit-guide" className="text-ink underline">
-            Fit Guide
-          </a>{' '}
-          has everything you need to size yourself perfectly.
-        </p>
-      </div>
-    </div>
   );
 }

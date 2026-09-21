@@ -18,7 +18,7 @@ function buildPrompt(context = {}) {
   ].filter(Boolean).join('. ');
 
   return [
-    'You are writing a product description for an e-commerce innerwear/nightwear store.',
+    'You are writing a product description for an e-commerce store selling nightwear and loungewear for women.',
     'Look at the attached product photo and write a concise, appealing description (2-4 sentences, plain text, no markdown, no headings).',
     'Describe only what is visibly true in the photo (garment style, visible fabric texture/pattern, colour, notable design details like lace or straps).',
     'Do not invent fit claims, model measurements, care instructions, or fabric composition that are not visible in the image.',

@@ -67,10 +67,9 @@ const buildAccordions = (product, commerce) => {
   const isBra = BRA_CATEGORY_RE.test(product.item?.name || '');
   const sizesAvailable = [...new Set((product.variants || []).map((v) => v.size?.name).filter(Boolean))].join(', ') || 'see options above';
   return [
-  {
-    title: 'Product Details',
-    body: product.description?.trim() || 'See the photos above for a closer look at this style. Full material details coming soon.',
-  },
+  // No placeholder body — a product without a written description simply has
+  // no Product Details section rather than showing filler to customers.
+  ...(product.description?.trim() ? [{ title: 'Product Details', body: product.description.trim() }] : []),
   {
     title: 'Size & Fit',
     body: isBra

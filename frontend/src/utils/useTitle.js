@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 const BASE = 'Nine Secrets';
-const DEFAULT_DESCRIPTION = 'Premium innerwear for every woman. Crafted with care, priced with honesty.';
+const DEFAULT_DESCRIPTION = 'Premium nightwear and loungewear for women. Crafted with care, priced with honesty.';
 
 // Upserts a <meta> tag identified by attr="key" (property for OG, name for
 // Twitter/description), or removes it when value is falsy.

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
 import Collection from './pages/Collection';
@@ -25,8 +25,8 @@ import ResetPassword from './pages/ResetPassword';
 import Wishlist from './pages/Wishlist';
 import OrderSuccess from './pages/OrderSuccess';
 import Account from './pages/Account';
-import { FitGuide, About, Policies, NotFound } from './pages/StaticPages';
-import { PrivacyPolicy, ReturnPolicy, ShippingPolicy, TermsOfService, Blog } from './pages/LegalPages';
+import { FitGuide, About, Contact, Policies, NotFound } from './pages/StaticPages';
+import { PrivacyPolicy, ReturnPolicy, ShippingPolicy, TermsOfService } from './pages/LegalPages';
 import Cart from './pages/Cart';
 
 function App() {
@@ -47,13 +47,14 @@ function App() {
           <Route path="checkout" element={<Checkout />} />
           <Route path="order-success/:orderNumber" element={<OrderSuccess />} />
           <Route path="cart" element={<Cart />} />
-          <Route path="blog" element={<Blog />} />
+          <Route path="blog" element={<Navigate to="/" replace />} />
           <Route path="privacy-policy" element={<PrivacyPolicy />} />
           <Route path="return-policy" element={<ReturnPolicy />} />
           <Route path="shipping-policy" element={<ShippingPolicy />} />
           <Route path="terms-of-service" element={<TermsOfService />} />
           <Route path="fit-guide" element={<FitGuide />} />
           <Route path="about" element={<About />} />
+          <Route path="contact" element={<Contact />} />
           <Route path="policies" element={<Policies />} />
           <Route path="*" element={<NotFound />} />
         </Route>

@@ -18,6 +18,11 @@ const DEFAULTS = {
   contactPhone: '',
   contactEmail: '',
   contactAddress: '',
+  legalName: '',
+  gstin: '',
+  jurisdictionCity: '',
+  grievanceName: '',
+  grievanceEmail: '',
   facebookUrl: '',
 };
 
@@ -149,6 +154,42 @@ export default function StoreSettings() {
           <input type="text" className={inputClass} placeholder="e.g. Nine Secrets, Surat, Gujarat, India"
             value={cfg.contactAddress || ''}
             onChange={(e) => setCfg({ ...cfg, contactAddress: e.target.value })} />
+        </div>
+
+        <h2 className="mb-4 font-heading text-lg italic text-ink">Business Identity</h2>
+        <p className="mb-4 text-[11px] text-mauve">Shown on the Contact page, footer, and in the legal pages. Leave a field blank to hide it.</p>
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Legal Business Name</label>
+            <input type="text" className={inputClass} placeholder="Name as registered"
+              value={cfg.legalName || ''}
+              onChange={(e) => setCfg({ ...cfg, legalName: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>GSTIN (optional)</label>
+            <input type="text" className={inputClass} placeholder="15-character GST number"
+              value={cfg.gstin || ''}
+              onChange={(e) => setCfg({ ...cfg, gstin: e.target.value.toUpperCase() })} />
+          </div>
+          <div>
+            <label className={labelClass}>Jurisdiction City</label>
+            <input type="text" className={inputClass} placeholder="City whose courts govern disputes"
+              value={cfg.jurisdictionCity || ''}
+              onChange={(e) => setCfg({ ...cfg, jurisdictionCity: e.target.value })} />
+          </div>
+          <div />
+          <div>
+            <label className={labelClass}>Grievance Officer Name</label>
+            <input type="text" className={inputClass}
+              value={cfg.grievanceName || ''}
+              onChange={(e) => setCfg({ ...cfg, grievanceName: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Grievance Officer Email</label>
+            <input type="email" className={inputClass}
+              value={cfg.grievanceEmail || ''}
+              onChange={(e) => setCfg({ ...cfg, grievanceEmail: e.target.value })} />
+          </div>
         </div>
 
         <h2 className="mb-4 font-heading text-lg italic text-ink">Social Links</h2>

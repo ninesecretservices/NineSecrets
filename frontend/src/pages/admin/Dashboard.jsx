@@ -7,7 +7,7 @@ import useStore from '../../store/useStore';
 // Guided setup for first-time (non-technical) users. Each step checks live data.
 const SETUP_STEPS = [
   { key: 'department', endpoint: 'department', label: 'Create a Department', desc: 'The top section of your shop — usually just "Women".', to: '/admin/departments' },
-  { key: 'item', endpoint: 'item', label: 'Add your Categories', desc: 'The product types you sell — Bra, Nightdress, Lounge Set...', to: '/admin/items' },
+  { key: 'item', endpoint: 'item', label: 'Add your Categories', desc: 'The product types you sell — Night Suit, Pyjama Set, T-shirt Set...', to: '/admin/items' },
   { key: 'colour', endpoint: 'colour', label: 'Add your Colours', desc: 'The colour swatches customers pick from.', to: '/admin/colours' },
   { key: 'size', endpoint: 'size', label: 'Add your Sizes', desc: 'S, M, L, XL — whatever you stock.', to: '/admin/sizes' },
   { key: 'fit', endpoint: 'fit', label: 'Add a Fit', desc: 'Just add "Regular" if you don\'t differentiate fits.', to: '/admin/fits' },

@@ -22,7 +22,7 @@ export const HOME_DEFAULTS = {
     image: '',
     eyebrow: 'New Collection',
     heading: 'soft as a whisper,\nmade to\nlast all night',
-    subtext: 'Premium innerwear for the woman who deserves both comfort and style.',
+    subtext: 'Premium nightwear for the woman who deserves both comfort and style.',
     // Small trust line under the subtext, e.g. "Free Shipping · COD Available · Easy Return".
     // Empty by default — nothing forced on the storefront until the admin sets it.
     features: '',
@@ -36,7 +36,7 @@ export const HOME_DEFAULTS = {
   announcements: [
     { text: 'Free Shipping on orders above ₹599', link: '/collection', start: '', end: '' },
     { text: 'Easy 7-Day Exchange Policy', link: '/policies#exchange', start: '', end: '' },
-    { text: 'Premium innerwear, made in India', link: '/about', start: '', end: '' },
+    { text: 'Premium nightwear, made in India', link: '/about', start: '', end: '' },
   ],
   usp: [
     { icon: '✦', label: 'Premium Fabric' },

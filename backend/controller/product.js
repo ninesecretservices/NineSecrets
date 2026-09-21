@@ -227,6 +227,11 @@ class ProductController {
       
     if (!doc || doc.isDeleted) throw new ApiError(404, 'Product not found');
 
+    // A hidden (draft) product must not be reachable by its URL either — the
+    // list endpoint already hides it. Staff can still open it to preview.
+    const isStaff = req.user && ['admin', 'superadmin', 'catalog'].includes(req.user.role);
+    if (doc.status === 'draft' && !isStaff) throw new ApiError(404, 'Product not found');
+
     res.locals.responseData = { success: true, data: doc };
     next();
   }

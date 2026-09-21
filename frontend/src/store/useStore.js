@@ -172,7 +172,20 @@ const useStore = create((set, get) => ({
 
   // product: full product doc; variant: populated variant (colour/size/fit objects)
   addToCart: async (product, variant, quantity, price) => {
-    const { user, cart, toast } = get();
+    const { user, toast } = get();
+
+    // A logged-in user's cart lives on the server and is only loaded when a
+    // page asks for it. On a freshly loaded product page it's still null, and
+    // building the update from that would overwrite the real cart with just
+    // this one item — so load it first, and bail out rather than guess.
+    if (user && get().cart === null) {
+      await get().fetchCart();
+      if (get().cart === null) {
+        toast('Could not load your bag — please try again', 'error');
+        return;
+      }
+    }
+    const { cart } = get();
 
     if (!user) {
       // Guest cart: keep a display-ready snapshot locally.

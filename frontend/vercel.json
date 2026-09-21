@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "https://REPLACE_WITH_REAL_BACKEND_URL/sitemap.xml" },
+    { "source": "/sitemap.xml", "destination": "https://ninesecrets.onrender.com/sitemap.xml" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

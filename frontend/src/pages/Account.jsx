@@ -9,6 +9,8 @@ import {
   XCircle,
   Download,
   X,
+  Truck,
+  ExternalLink,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import api, { resolveImageUrl } from '../utils/api';
@@ -597,6 +599,25 @@ export default function Account() {
                   </div>
                   <OrderTimeline status={o.orderStatus} />
                 </div>
+                {['shipped', 'delivered'].includes(o.orderStatus) && (o.shipment?.courier || o.shipment?.awbNumber) && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-beige/60 bg-cream px-3 py-2.5 text-xs">
+                    <p className="flex items-center gap-1.5 text-mauve-dark">
+                      <Truck size={13} strokeWidth={1.5} />
+                      {o.shipment.courier && <span className="font-medium text-ink">{o.shipment.courier}</span>}
+                      {o.shipment.awbNumber && <span>AWB: {o.shipment.awbNumber}</span>}
+                    </p>
+                    {o.shipment.trackingUrl && (
+                      <a
+                        href={o.shipment.trackingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 font-semibold uppercase tracking-[0.08em] text-ink underline underline-offset-2"
+                      >
+                        Track Package <ExternalLink size={12} strokeWidth={1.5} />
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1 border-t border-beige/60 pt-3 text-sm text-mauve-dark">
                   {o.items.map((i, idx) => (
                     <div key={idx} className="flex justify-between">

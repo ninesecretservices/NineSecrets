@@ -6,6 +6,9 @@ import ApiError from './ApiError.js';
 // newline, which makes Razorpay reject them as invalid — trim defensively.
 const KEY_ID = (process.env.RAZORPAY_KEY_ID || '').trim();
 const KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+// Separate secret, set on Razorpay's dashboard when configuring the webhook —
+// not the same as the API key secret above, and not usable in its place.
+const WEBHOOK_SECRET = (process.env.RAZORPAY_WEBHOOK_SECRET || '').trim();
 
 export const razorpayConfigured = !!(KEY_ID && KEY_SECRET);
 export const razorpayKeyId = KEY_ID;
@@ -42,4 +45,19 @@ export const verifyRazorpaySignature = (orderId, paymentId, signature) => {
     .update(`${orderId}|${paymentId}`)
     .digest('hex');
   return expected === signature;
+};
+
+// rawBody must be the exact bytes Razorpay sent (a Buffer) — the signature is
+// computed over the untouched request body, so anything that re-serializes
+// JSON first (different key order, spacing) would make a genuine webhook fail
+// verification. See index.js, where this route is deliberately given
+// express.raw() instead of the app-wide express.json().
+export const verifyWebhookSignature = (rawBody, signature) => {
+  if (!WEBHOOK_SECRET || !signature) return false;
+  const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  } catch {
+    return false; // different lengths — definitely not a match
+  }
 };

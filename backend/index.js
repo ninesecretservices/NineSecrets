@@ -10,6 +10,7 @@ import { logError } from './methods.js';
 import { validateEnv } from './utils/validateEnv.js';
 import { startAbandonedCartJob } from './jobs/abandonedCart.js';
 import { startRenderKeepAliveJob } from './jobs/renderKeepAlive.js';
+import { razorpayWebhook } from './controller/webhook.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,6 +41,13 @@ app.use(cors(
     ? { origin: allowedOrigins }
     : {}
 ));
+
+// Razorpay webhook — registered before express.json() and given express.raw()
+// instead, since its signature is computed over the exact raw request bytes
+// Razorpay sent. Deliberately not behind /api's auth or rate-limit middleware
+// below: Razorpay calls this directly, with no user session, verified instead
+// by its own signature (see controller/webhook.js).
+app.post('/api/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }), razorpayWebhook);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));

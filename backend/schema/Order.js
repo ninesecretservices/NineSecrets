@@ -36,7 +36,11 @@ const orderSchema = new mongoose.Schema({
   orderStatus: { type: String, enum: ['processing', 'shipped', 'delivered', 'cancelled'], default: 'processing' },
   paymentMethod: { type: String, enum: ['card', 'cod'], default: 'cod' },
   razorpay: {
-    orderId: { type: String },
+    // Unique+sparse: COD orders never set this, but when they do, it must be
+    // one order per Razorpay order id — the webhook recovery path and the
+    // normal checkout call can race to create the same order, and this index
+    // is what makes the loser's insert fail instead of silently duplicating.
+    orderId: { type: String, unique: true, sparse: true },
     paymentId: { type: String }
   },
   deliveredAt: { type: Date },

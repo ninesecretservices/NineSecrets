@@ -5,6 +5,7 @@ import Product from '../schema/Product.js';
 import Coupon from '../schema/Coupon.js';
 import Setting from '../schema/Setting.js';
 import User from '../schema/User.js';
+import PendingPayment from '../schema/PendingPayment.js';
 import { sendEmail, orderConfirmationEmail } from '../utils/email.js';
 import { generateInvoicePdf } from '../utils/invoice.js';
 import { razorpayConfigured, razorpayKeyId, createRazorpayOrder, verifyRazorpaySignature, refundRazorpayPayment } from '../utils/razorpay.js';
@@ -131,6 +132,68 @@ const priceOrderItems = async (rawItems, couponCode, shippingMethod = 'standard'
   return { commerce, orderItems, subtotal, tax, couponData, shippingFee, shippingMethod, total };
 };
 
+const assertValidShippingAddress = (shippingAddress) => {
+  if (!shippingAddress?.fullName || !shippingAddress?.addressLine1 || !shippingAddress?.city ||
+      !shippingAddress?.postalCode || !shippingAddress?.phone) {
+    throw new ApiError(400, 'Shipping address (name, address, city, postal code, phone) is required');
+  }
+};
+
+// Creates the Order for a captured card payment — decrementing stock, clearing
+// the cart, sending the confirmation email. Shared by two callers: orderCreate
+// (the normal path, right after the client's own signature check) and the
+// Razorpay webhook's recovery path, used only if a payment.captured event
+// arrives for an order that was never created (the customer's browser closed,
+// or something else stopped the normal call from ever reaching us).
+//
+// Idempotent by design: a unique index on razorpay.orderId means at most one
+// of these ever wins when the normal flow and the webhook both reach here for
+// the same payment — the loser's insert fails and this just returns whichever
+// order actually got created, rather than erroring or duplicating it.
+export const finalizeCardOrder = async ({ userId, userEmail, shippingAddress, shippingMethod, couponCode, razorpayOrderId, razorpayPaymentId }) => {
+  const existing = await Order.findOne({ 'razorpay.orderId': razorpayOrderId });
+  if (existing) return existing;
+
+  assertValidShippingAddress(shippingAddress);
+  if (!['standard', 'express'].includes(shippingMethod)) shippingMethod = 'standard';
+
+  const { orderItems, subtotal, tax, couponData, shippingFee, total } = await priceCart(userId, couponCode, shippingMethod);
+  if (couponData) await Coupon.updateOne({ code: couponData.code }, { $inc: { usedCount: 1 } });
+
+  const decremented = [];
+  for (const item of orderItems) {
+    const ok = await decrementStock(item.product, item.variant.sku, item.quantity);
+    if (!ok) {
+      await restoreStock(decremented);
+      throw new ApiError(409, `"${item.name}" went out of stock while placing the order.`);
+    }
+    decremented.push(item);
+  }
+
+  const orderNumber = 'ORD-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  let order;
+  try {
+    order = await Order.create({
+      user: userId, orderNumber, items: orderItems, subtotal, tax, shippingFee, shippingMethod, total,
+      coupon: couponData, shippingAddress, paymentMethod: 'card', paymentStatus: 'completed', orderStatus: 'processing',
+      razorpay: { orderId: razorpayOrderId, paymentId: razorpayPaymentId },
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      // Lost the race to the other caller — give back the stock we just took
+      // (the winner already took its own) and return the order that won.
+      await restoreStock(decremented);
+      const winner = await Order.findOne({ 'razorpay.orderId': razorpayOrderId });
+      if (winner) return winner;
+    }
+    throw err;
+  }
+
+  await Cart.findOneAndUpdate({ user: userId }, { items: [], total: 0 });
+  sendEmail({ to: userEmail, ...orderConfirmationEmail(order) });
+  return order;
+};
+
 export const priceCart = async (userId, couponCode, shippingMethod) => {
   const cart = await Cart.findOne({ user: userId });
   if (!cart || cart.items.length === 0) {
@@ -222,9 +285,20 @@ class OrderController {
   // payment id + signature once the customer has actually paid.
   async paymentCreateRazorpayOrder(req, res, next) {
     if (!razorpayConfigured) throw new ApiError(400, 'Online payment is not configured');
-    const { couponCode, shippingMethod } = req.body;
+    const { couponCode, shippingMethod, shippingAddress } = req.body;
+    assertValidShippingAddress(shippingAddress);
     const { total } = await priceCart(req.user.id, couponCode, shippingMethod);
     const razorpayOrder = await createRazorpayOrder(total, `rcpt_${req.user.id}_${Date.now()}`);
+
+    // Stashed so a payment.captured webhook can still create this order on its
+    // own if the browser never comes back to call /order/create — see
+    // finalizeCardOrder and controller/webhook.js.
+    await PendingPayment.findOneAndUpdate(
+      { razorpayOrderId: razorpayOrder.id },
+      { user: req.user.id, shippingAddress, shippingMethod, couponCode },
+      { upsert: true }
+    );
+
     res.locals.responseData = {
       success: true,
       data: { razorpayOrderId: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, keyId: razorpayKeyId },
@@ -236,16 +310,20 @@ class OrderController {
     const { shippingAddress, paymentMethod = 'cod', couponCode, razorpayOrderId, razorpayPaymentId, razorpaySignature, shippingMethod = 'standard' } = req.body;
     const userId = req.user.id;
 
-    if (!shippingAddress?.fullName || !shippingAddress?.addressLine1 || !shippingAddress?.city ||
-        !shippingAddress?.postalCode || !shippingAddress?.phone) {
-      throw new ApiError(400, 'Shipping address (name, address, city, postal code, phone) is required');
-    }
+    assertValidShippingAddress(shippingAddress);
     if (!['cod', 'card'].includes(paymentMethod)) {
       throw new ApiError(400, 'Invalid payment method');
     }
+    if (!['standard', 'express'].includes(shippingMethod)) throw new ApiError(400, 'Invalid shipping method');
+
+    const commerce = await getCommerceConfig();
+    if (shippingMethod === 'express' && !commerce.expressShippingEnabled) {
+      throw new ApiError(400, 'Express shipping is currently unavailable');
+    }
 
     // Card orders must already be paid — verify the gateway's signature before
-    // touching stock or creating anything. COD skips straight through.
+    // touching stock or creating anything, then hand off to the same order-
+    // creation logic the webhook recovery path uses (see finalizeCardOrder).
     if (paymentMethod === 'card') {
       if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
         throw new ApiError(400, 'Payment details are missing');
@@ -253,16 +331,18 @@ class OrderController {
       if (!verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
         throw new ApiError(400, 'Payment verification failed');
       }
+      const order = await finalizeCardOrder({
+        userId, userEmail: req.user.email, shippingAddress, shippingMethod, couponCode, razorpayOrderId, razorpayPaymentId,
+      });
+      await PendingPayment.deleteOne({ razorpayOrderId }).catch(() => {});
+      res.locals.responseData = { success: true, message: 'Order placed successfully', data: order };
+      return next();
     }
 
-    if (!['standard', 'express'].includes(shippingMethod)) throw new ApiError(400, 'Invalid shipping method');
-    const { commerce, orderItems, subtotal, tax, couponData, shippingFee, total } = await priceCart(userId, couponCode, shippingMethod);
-    if (shippingMethod === 'express' && !commerce.expressShippingEnabled) {
-      throw new ApiError(400, 'Express shipping is currently unavailable');
-    }
-    if (paymentMethod === 'cod' && !commerce.codEnabled) {
+    if (!commerce.codEnabled) {
       throw new ApiError(400, 'Cash on Delivery is currently unavailable');
     }
+    const { orderItems, subtotal, tax, couponData, shippingFee, total } = await priceCart(userId, couponCode, shippingMethod);
     if (couponData) {
       await Coupon.updateOne({ code: couponData.code }, { $inc: { usedCount: 1 } });
     }
@@ -281,8 +361,6 @@ class OrderController {
     const orderNumber = 'ORD-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
     // COD is confirmed immediately with payment pending (collected on delivery).
-    // Card orders reach here only after a verified Razorpay signature, so payment
-    // is already complete.
     const order = await Order.create({
       user: userId,
       orderNumber,
@@ -295,9 +373,8 @@ class OrderController {
       coupon: couponData,
       shippingAddress,
       paymentMethod,
-      paymentStatus: paymentMethod === 'card' ? 'completed' : 'pending',
+      paymentStatus: 'pending',
       orderStatus: 'processing',
-      ...(paymentMethod === 'card' && { razorpay: { orderId: razorpayOrderId, paymentId: razorpayPaymentId } })
     });
 
     // Clear the cart

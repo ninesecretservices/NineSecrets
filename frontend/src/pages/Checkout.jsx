@@ -176,6 +176,7 @@ export default function Checkout() {
     const { data } = await api.post('/order/razorpay-order', {
       ...(coupon && { couponCode: coupon.code }),
       shippingMethod,
+      shippingAddress: form,
     });
     const { razorpayOrderId, amount, currency, keyId } = data.data;
 

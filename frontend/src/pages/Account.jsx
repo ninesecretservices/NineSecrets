@@ -11,6 +11,7 @@ import {
   X,
   Truck,
   ExternalLink,
+  Plus,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import api, { resolveImageUrl } from '../utils/api';
@@ -246,12 +247,18 @@ function ReturnModal({ order, onClose, onDone }) {
   );
 }
 
+const EMPTY_ADDRESS = { label: 'Home', fullName: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', phone: '' };
+const ADDRESS_LABELS = ['Home', 'Work', 'Other'];
+
 function ProfileSection({ user, setUser, toast }) {
   const [name, setName] = useState(user.name || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [addresses, setAddresses] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [addingAddress, setAddingAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
+  const [addressSaving, setAddressSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -294,6 +301,27 @@ function ProfileSection({ user, setUser, toast }) {
     } catch (err) {
       toast(err.response?.data?.message || 'Could not remove address', 'error');
     }
+  };
+
+  const addAddress = async (e) => {
+    e.preventDefault();
+    if (!newAddress.fullName.trim() || !newAddress.addressLine1.trim() || !newAddress.city.trim() ||
+        !newAddress.postalCode.trim() || !newAddress.phone.trim()) {
+      toast('Name, address, city, postal code and phone are required', 'error');
+      return;
+    }
+    setAddressSaving(true);
+    try {
+      const next = [...addresses, newAddress];
+      await api.post('/auth/profile-update', { addresses: next });
+      setAddresses(next);
+      setNewAddress(EMPTY_ADDRESS);
+      setAddingAddress(false);
+      toast('Address added');
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not add address', 'error');
+    }
+    setAddressSaving(false);
   };
 
   return (
@@ -355,12 +383,12 @@ function ProfileSection({ user, setUser, toast }) {
           Saved Addresses
         </h2>
         {addresses.length === 0 ? (
-          <p className="text-sm text-mauve">
+          <p className="mb-4 text-sm text-mauve">
             No saved addresses yet — one is saved automatically when you check
-            out.
+            out, or add one below.
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="mb-4 space-y-3">
             {addresses.map((a, i) => (
               <div
                 key={i}
@@ -373,6 +401,9 @@ function ProfileSection({ user, setUser, toast }) {
                     className="mt-0.5 flex-shrink-0 text-mauve"
                   />
                   <span>
+                    <span className="mr-1.5 bg-beige px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink">
+                      {a.label || 'Home'}
+                    </span>
                     <b>{a.fullName}</b> · {a.addressLine1}, {a.city}{' '}
                     {a.postalCode} · {a.phone}
                   </span>
@@ -387,6 +418,94 @@ function ProfileSection({ user, setUser, toast }) {
               </div>
             ))}
           </div>
+        )}
+
+        {!addingAddress ? (
+          <button
+            type="button"
+            onClick={() => setAddingAddress(true)}
+            disabled={addresses.length >= 10}
+            className="flex items-center gap-1.5 border border-beige px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink transition-colors hover:bg-beige disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={13} strokeWidth={1.5} /> Add New Address
+          </button>
+        ) : (
+          <form onSubmit={addAddress} className="space-y-3 border-t border-beige pt-4">
+            <div className="flex gap-2">
+              {ADDRESS_LABELS.map((l) => (
+                <button
+                  type="button"
+                  key={l}
+                  onClick={() => setNewAddress({ ...newAddress, label: l })}
+                  className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] ${
+                    newAddress.label === l ? 'bg-ink text-cream' : 'border border-beige text-ink'
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <input
+              className={inputClass}
+              placeholder="Full name"
+              value={newAddress.fullName}
+              onChange={(e) => setNewAddress({ ...newAddress, fullName: e.target.value })}
+            />
+            <input
+              className={inputClass}
+              placeholder="Address line 1"
+              value={newAddress.addressLine1}
+              onChange={(e) => setNewAddress({ ...newAddress, addressLine1: e.target.value })}
+            />
+            <input
+              className={inputClass}
+              placeholder="Address line 2 (optional)"
+              value={newAddress.addressLine2}
+              onChange={(e) => setNewAddress({ ...newAddress, addressLine2: e.target.value })}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                className={inputClass}
+                placeholder="City"
+                value={newAddress.city}
+                onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+              />
+              <input
+                className={inputClass}
+                placeholder="State"
+                value={newAddress.state}
+                onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+              />
+              <input
+                className={inputClass}
+                placeholder="Postal code"
+                value={newAddress.postalCode}
+                onChange={(e) => setNewAddress({ ...newAddress, postalCode: e.target.value })}
+              />
+              <input
+                className={inputClass}
+                placeholder="Phone"
+                value={newAddress.phone}
+                onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={addressSaving}
+                className="bg-ink px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-cream disabled:opacity-50"
+              >
+                {addressSaving ? 'Saving...' : 'Save Address'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAddingAddress(false); setNewAddress(EMPTY_ADDRESS); }}
+                className="border border-beige px-6 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>

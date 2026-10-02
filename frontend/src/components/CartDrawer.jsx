@@ -71,7 +71,7 @@ export default function CartDrawer() {
                 <div key={`${item.product?._id || item.product}-${item.variant?.sku || idx}`} className="flex gap-4 border-b border-beige/70 pb-5">
                   <div className="h-24 w-[76px] flex-shrink-0 overflow-hidden bg-blush">
                     {item.product?.thumbnail && (
-                      <img src={resolveImageUrl(item.product.thumbnail)} alt={item.product?.name || ''} className="h-full w-full object-cover" />
+                      <img src={resolveImageUrl(item.product.thumbnail, 'w_200,h_250,c_fill')} alt={item.product?.name || ''} className="h-full w-full object-cover" />
                     )}
                   </div>
                   <div className="flex flex-grow flex-col justify-between">

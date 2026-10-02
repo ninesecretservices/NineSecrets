@@ -1,25 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
 import Collection from './pages/Collection';
 import Login from './pages/Login';
 import Checkout from './pages/Checkout';
-import AdminLayout from './components/AdminLayout';
 import StorefrontLayout from './components/StorefrontLayout';
-import { Departments, Items, Designs, Fabrics, Fits, Sizes, Colours, DescriptionTemplates } from './pages/admin/MasterDataViews';
-import Products from './pages/admin/Products';
-import Dashboard from './pages/admin/Dashboard';
-import Orders from './pages/admin/Orders';
-import Users from './pages/admin/Users';
-import Coupons from './pages/admin/Coupons';
-import Homepage from './pages/admin/Homepage';
-import StoreSettings from './pages/admin/StoreSettings';
-import StockImport from './pages/admin/StockImport';
-import ProductImport from './pages/admin/ProductImport';
-import AuditLog from './pages/admin/AuditLog';
-import Returns from './pages/admin/Returns';
-import Customers from './pages/admin/Customers';
-import Reports from './pages/admin/Reports';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Wishlist from './pages/Wishlist';
@@ -28,6 +14,46 @@ import Account from './pages/Account';
 import { FitGuide, About, Contact, Policies, NotFound } from './pages/StaticPages';
 import { PrivacyPolicy, ReturnPolicy, ShippingPolicy, TermsOfService } from './pages/LegalPages';
 import Cart from './pages/Cart';
+
+// Admin is a separate app-within-the-app that only staff ever load — splitting
+// it out of the main bundle means a shopper never downloads the admin panel's
+// JS (bulk-import's xlsx dependency, every management page) just to browse
+// the storefront.
+const AdminLayout = lazy(() => import('./components/AdminLayout'));
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
+const Products = lazy(() => import('./pages/admin/Products'));
+const Orders = lazy(() => import('./pages/admin/Orders'));
+const Returns = lazy(() => import('./pages/admin/Returns'));
+const Customers = lazy(() => import('./pages/admin/Customers'));
+const Reports = lazy(() => import('./pages/admin/Reports'));
+const Coupons = lazy(() => import('./pages/admin/Coupons'));
+const Homepage = lazy(() => import('./pages/admin/Homepage'));
+const StoreSettings = lazy(() => import('./pages/admin/StoreSettings'));
+const StockImport = lazy(() => import('./pages/admin/StockImport'));
+const ProductImport = lazy(() => import('./pages/admin/ProductImport'));
+const Users = lazy(() => import('./pages/admin/Users'));
+const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
+
+// MasterDataViews exports several small named components from one file —
+// each still gets its own lazy() so routing picks only the one it needs, but
+// they share a single chunk since they come from the same module.
+const lazyNamed = (name) => lazy(() => import('./pages/admin/MasterDataViews').then((m) => ({ default: m[name] })));
+const Departments = lazyNamed('Departments');
+const Items = lazyNamed('Items');
+const Designs = lazyNamed('Designs');
+const Fabrics = lazyNamed('Fabrics');
+const Fits = lazyNamed('Fits');
+const Sizes = lazyNamed('Sizes');
+const Colours = lazyNamed('Colours');
+const DescriptionTemplates = lazyNamed('DescriptionTemplates');
+
+function AdminFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-cream text-sm text-mauve">
+      Loading admin…
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -59,8 +85,15 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Route>
 
-        {/* Admin Routes (guarded inside AdminLayout) */}
-        <Route path="/admin" element={<AdminLayout />}>
+        {/* Admin Routes (guarded inside AdminLayout) — lazy-loaded as a group */}
+        <Route
+          path="/admin"
+          element={
+            <Suspense fallback={<AdminFallback />}>
+              <AdminLayout />
+            </Suspense>
+          }
+        >
           <Route index element={<Dashboard />} />
           <Route path="products" element={<Products />} />
           <Route path="orders" element={<Orders />} />

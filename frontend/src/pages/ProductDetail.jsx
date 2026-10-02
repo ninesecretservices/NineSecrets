@@ -282,9 +282,13 @@ export default function ProductDetail() {
     return <NotFound />;
   }
 
-  const gallery = product.images?.length > 0
+  const galleryFull = product.images?.length > 0
     ? product.images
     : product.thumbnail ? [product.thumbnail] : [];
+  // Zoomed main view keeps full resolution (only compressed/reformatted);
+  // the small strip of alternate shots doesn't need to.
+  const gallery = galleryFull.map((u) => resolveImageUrl(u));
+  const galleryThumbs = galleryFull.map((u) => resolveImageUrl(u, 'w_200,h_200,c_fill'));
 
   const accordions = buildAccordions(product, commerce);
 
@@ -401,7 +405,7 @@ export default function ProductDetail() {
             <ZoomImage src={gallery[imgIdx]} alt={product.name} />
             {gallery.length > 1 && (
               <div className="mt-4 flex gap-3">
-                {gallery.map((img, i) => (
+                {galleryThumbs.map((img, i) => (
                   <button
                     key={i}
                     onClick={() => setImgIdx(i)}

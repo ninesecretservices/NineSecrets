@@ -49,7 +49,7 @@ export default function Cart() {
                   onClick={() => item.product?.slug && navigate(`/product/${item.product.slug}`)}
                 >
                   {item.product?.thumbnail && (
-                    <img src={resolveImageUrl(item.product.thumbnail)} alt={item.product?.name || ''} className="h-full w-full object-cover" />
+                    <img src={resolveImageUrl(item.product.thumbnail, 'w_200,h_250,c_fill')} alt={item.product?.name || ''} className="h-full w-full object-cover" />
                   )}
                 </div>
                 <div className="flex flex-grow flex-col justify-between py-1">

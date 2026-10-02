@@ -10,7 +10,7 @@ import { HOME_DEFAULTS, normalizeHomepage, activeAnnouncements } from '../utils/
 import { applyThemeTokens, clearThemeTokens } from '../utils/themes';
 import { initAnalyticsIfConsented, trackPageView } from '../utils/analytics';
 import { inr } from '../utils/format';
-import { ADMIN_ROLES } from './AdminLayout';
+import { ADMIN_ROLES } from '../utils/roles';
 
 function AnnouncementBar() {
   const [messages, setMessages] = useState(activeAnnouncements(normalizeHomepage(HOME_DEFAULTS)));

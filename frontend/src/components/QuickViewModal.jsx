@@ -64,7 +64,7 @@ export default function QuickViewModal({ productId, onClose }) {
       >
         <div className="relative aspect-square bg-beige/40 sm:aspect-auto">
           {product.thumbnail && (
-            <img src={resolveImageUrl(product.thumbnail)} alt={product.name} className="h-full w-full object-cover" />
+            <img src={resolveImageUrl(product.thumbnail, 'w_700,h_700,c_fill')} alt={product.name} className="h-full w-full object-cover" />
           )}
         </div>
         <div className="flex flex-col p-6">

@@ -11,7 +11,7 @@ import Toaster from './Toaster';
 // Staff roles that can reach the admin panel at all. 'fulfillment' and 'catalog'
 // are scoped-down staff roles (see backend/schema/User.js) — every nav link below
 // carries a `roles` allow-list; a link with no `roles` is visible to all four.
-export const ADMIN_ROLES = ['superadmin', 'admin', 'fulfillment', 'catalog'];
+import { ADMIN_ROLES } from '../utils/roles';
 const CATALOG_ROLES = ['superadmin', 'admin', 'catalog'];
 const FULFILLMENT_ROLES = ['superadmin', 'admin', 'fulfillment'];
 

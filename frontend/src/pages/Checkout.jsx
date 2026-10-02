@@ -556,7 +556,7 @@ export default function Checkout() {
                 <div className="h-16 w-[52px] flex-shrink-0 overflow-hidden bg-blush">
                   {item.product?.thumbnail && (
                     <img
-                      src={resolveImageUrl(item.product.thumbnail)}
+                      src={resolveImageUrl(item.product.thumbnail, 'w_150,h_150,c_fill')}
                       alt=""
                       className="h-full w-full object-cover"
                     />

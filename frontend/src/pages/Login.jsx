@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useStore from '../store/useStore';
 import api from '../utils/api';
-import { ADMIN_ROLES } from '../components/AdminLayout';
+import { ADMIN_ROLES } from '../utils/roles';
 
 const inputClass =
   'w-full border border-beige bg-white px-5 py-3 text-sm text-ink outline-none transition-colors focus:border-ink';

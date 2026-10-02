@@ -157,7 +157,7 @@ function CategoryCircles({ categories }) {
             <Link key={i} to={cat.link || '/collection'} className="group flex w-[110px] flex-shrink-0 flex-col items-center gap-3 text-center">
               <div className="h-[110px] w-[110px] overflow-hidden rounded-full bg-beige">
                 <img
-                  src={resolveImageUrl(cat.image)}
+                  src={resolveImageUrl(cat.image, 'w_300,h_300,c_fill')}
                   alt={cat.title}
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

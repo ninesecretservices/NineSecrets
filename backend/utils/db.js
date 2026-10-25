@@ -21,6 +21,8 @@ import '../schema/Order.js';
 import '../schema/Review.js';
 import '../schema/Setting.js';
 import '../schema/AuditLog.js';
+import '../schema/Shop.js';
+import '../schema/BulkOrder.js';
 
 const connectDB = async () => {
   try {

@@ -20,7 +20,9 @@ const userSchema = new mongoose.Schema(
       // fulfillment: orders-only staff access. catalog: products/master-data-only
       // staff access. Neither can delete records or reach Users/Coupons/Settings/
       // Homepage — same restriction 'admin' itself already has for deletes.
-      enum: ['superadmin', 'admin', 'fulfillment', 'catalog', 'customer'],
+      // sales: the wholesale tablet app only — build/finalize bulk orders and
+      // add shops, no access to the web admin panel's customer-facing side.
+      enum: ['superadmin', 'admin', 'fulfillment', 'catalog', 'sales', 'customer'],
       default: 'customer',
     },
     isActive: {

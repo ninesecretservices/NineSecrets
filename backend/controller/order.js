@@ -33,7 +33,7 @@ export const getCommerceConfig = async () => {
 };
 
 // Atomically decrement stock for one variant; fails if stock is insufficient.
-const decrementStock = async (productId, sku, qty) => {
+export const decrementStock = async (productId, sku, qty) => {
   const res = await Product.updateOne(
     { _id: productId, variants: { $elemMatch: { sku, stock: { $gte: qty } } } },
     { $inc: { 'variants.$.stock': -qty } }
@@ -61,7 +61,7 @@ const refundOrderPayment = async (order) => {
   }
 };
 
-const restoreStock = async (items) => {
+export const restoreStock = async (items) => {
   for (const item of items) {
     if (!item.variant?.sku) continue;
     await Product.updateOne(

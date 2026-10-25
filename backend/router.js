@@ -28,6 +28,8 @@ import AuditLogController from './controller/auditLog.js';
 import WishlistController from './controller/wishlist.js';
 import CustomerController from './controller/customer.js';
 import ReportController from './controller/report.js';
+import ShopController from './controller/shop.js';
+import BulkOrderController from './controller/bulkOrder.js';
 
 // ---------------------------------------------------------
 // Controller Instances
@@ -54,6 +56,8 @@ const auditLogController = new AuditLogController();
 const wishlistController = new WishlistController();
 const customerController = new CustomerController();
 const reportController = new ReportController();
+const shopController = new ShopController();
+const bulkOrderController = new BulkOrderController();
 
 // ---------------------------------------------------------
 // Auth Routes
@@ -252,5 +256,19 @@ router.post('/setting/revert', auth, requireRole(['superadmin']), settingControl
 import upload from './middleware/upload.js';
 router.post('/upload/image', auth, upload.single('image'), uploadController.uploadImage, responsedata);
 router.post('/upload/delete', auth, requireRole(['superadmin', 'admin', 'catalog']), uploadController.deleteImage, responsedata);
+
+// ---------------------------------------------------------
+// Wholesale app: Shop + Bulk Order Routes
+// ---------------------------------------------------------
+const wholesaleRoles = ['superadmin', 'admin', 'sales'];
+router.post('/shop/list', auth, requireRole(wholesaleRoles), shopController.shopList, responsedata);
+router.post('/shop/create', auth, requireRole(wholesaleRoles), shopController.shopCreate, responsedata);
+router.post('/shop/update', auth, requireRole(['superadmin', 'admin']), shopController.shopUpdate, responsedata);
+router.post('/shop/delete', auth, requireRole(['superadmin']), shopController.shopDelete, responsedata);
+
+router.post('/bulk-order/list', auth, requireRole(wholesaleRoles), bulkOrderController.bulkOrderList, responsedata);
+router.post('/bulk-order/detail', auth, requireRole(wholesaleRoles), bulkOrderController.bulkOrderDetail, responsedata);
+router.post('/bulk-order/create', auth, requireRole(wholesaleRoles), bulkOrderController.bulkOrderCreate, responsedata);
+router.post('/bulk-order/update-status', auth, requireRole(wholesaleRoles), bulkOrderController.bulkOrderUpdateStatus, responsedata);
 
 export default router;

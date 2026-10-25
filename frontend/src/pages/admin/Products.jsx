@@ -10,7 +10,7 @@ import usePrompt from '../../utils/usePrompt';
 import Select from '../../components/admin/Select';
 import useStore from '../../store/useStore';
 
-const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '' };
+const EMPTY_VARIANT = { colour: '', size: '', fit: '', sku: '', barcode: '', stock: 0, mrp: '', sellingPrice: '', wholesalePrice: '' };
 
 const inputClass =
   'w-full rounded-xl border border-beige bg-white px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-ink';
@@ -217,6 +217,7 @@ export default function Products() {
           stock: v.stock ?? 0,
           mrp: v.mrp ?? '',
           sellingPrice: v.sellingPrice ?? '',
+          wholesalePrice: v.wholesalePrice ?? '',
         }))
       );
     } else {
@@ -342,6 +343,7 @@ export default function Products() {
         stock: Number(v.stock) || 0,
         mrp: Number(v.mrp) || 0,
         sellingPrice: Number(v.sellingPrice) || 0,
+        wholesalePrice: v.wholesalePrice === '' ? undefined : Number(v.wholesalePrice) || 0,
       }));
 
     if (variants.length > 0 && cleanVariants.length !== variants.length) {
@@ -775,7 +777,7 @@ export default function Products() {
                         />
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-[1fr_1fr_80px_100px_100px_36px] items-end gap-3">
+                    <div className="mt-3 grid grid-cols-[1fr_1fr_80px_100px_100px_100px_36px] items-end gap-3">
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Stock code (auto)</label>
                         <input type="text" placeholder="Fills automatically" value={v.sku} onChange={(e) => setVariant(idx, 'sku', e.target.value)} className={inputClass} required />
@@ -795,6 +797,10 @@ export default function Products() {
                       <div>
                         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Selling price ₹</label>
                         <input type="number" min="0" placeholder="e.g. 799" value={v.sellingPrice} onChange={(e) => setVariant(idx, 'sellingPrice', e.target.value)} className={inputClass} required />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-mauve">Wholesale ₹ (optional)</label>
+                        <input type="number" min="0" placeholder="e.g. 250" value={v.wholesalePrice} onChange={(e) => setVariant(idx, 'wholesalePrice', e.target.value)} className={inputClass} />
                       </div>
                       <button
                         type="button"

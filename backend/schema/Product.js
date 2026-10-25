@@ -8,8 +8,13 @@ const variantSchema = new mongoose.Schema({
   barcode: { type: String, trim: true }, // physical barcode (e.g. Alpha-E) — sync key for stock imports
   stock: { type: Number, required: true, default: 0 },
   mrp: { type: Number, required: true },
-  sellingPrice: { type: Number, required: true },
+  sellingPrice: { type: Number, required: true }, // retail price — the public storefront
   discountPrice: { type: Number },
+  // Bulk/wholesale price for the sales-team tablet app — lower than
+  // sellingPrice, never shown on the public storefront. Optional: existing
+  // variants have none until an admin sets one, and a variant with no
+  // wholesalePrice just can't be sold through that app yet.
+  wholesalePrice: { type: Number },
 });
 
 const productSchema = new mongoose.Schema(
